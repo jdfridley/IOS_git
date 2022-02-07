@@ -1,6 +1,6 @@
 #create master licor dataset
 #NSF IOS project
-#Fridley Jan 2022
+#Fridley Feb 2022
 
 #France files: 3 types of licor files 
 #note I could not get .xls files from France to import; used raw output text files instead
