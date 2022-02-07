@@ -16,7 +16,7 @@ unique(master$Species)
   #need to fix latin name spellings and capitalization
 sort(table(master$Species))
 unique(master$Sampling.Date)
-  #need to update with months and days for some
+  #need to update with months and days for somegit
 unique(master$Site.final)
 
 #folder of licor files
