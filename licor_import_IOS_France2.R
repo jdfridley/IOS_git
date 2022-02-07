@@ -9,6 +9,7 @@
 library(readxl)
 library(stringr)
 library(lubridate)
+library(nlme)
 
 #sample master downloaded from google
 master = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/NSF-IOS spreadsheet_Feb2.csv")
