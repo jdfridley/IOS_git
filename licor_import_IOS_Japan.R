@@ -5,9 +5,11 @@
 #library(data.table)
 library(readxl)
 library(stringr)
+library(googlesheets4)
 
 #sample master downloaded from google
-master = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/NSF-IOS spreadsheet_Jan24.csv")
+master = read_sheet("https://docs.google.com/spreadsheets/d/1QLL5AUeP-fHar0HRfDjDP0Mw25FvowqidiCyEbBA5og/edit#gid=0")
+#master = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/NSF-IOS spreadsheet_Jan24.csv")
 str(master)
 unique(master$Species)
   #need to fix latin name spellings and capitalization
