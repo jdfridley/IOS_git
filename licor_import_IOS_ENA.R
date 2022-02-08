@@ -28,6 +28,16 @@ files[is.element(files,master$LICOR.file.in.hand)==F]
   # these names were fixed on 2-8-22: "210808_s27_bifro.xls"          "combined_190625_S6_Bethu.xlsx" "combined_190625_S6_ceorb.xlsx"
   #ALL GOOD, make sure to ignore names that start with 'MISSING'
 
+#file output types:
+#1. 2019 csv files: standard csv with no headers
+#2. 2021 text files (2): 6800 output, tab delim, investigate
+#3. 2000 text files (8): 6400 output, tab delim, std header info
+#the rest are apparently all the same:
+#4. 2019 xls (many): 6400 output, pain with header info and remarks to omit
+#5. 2000 xls (many): 6400 output, pain with header info and remarks to omit
+#6. 2001 xls (~10): 6400 output, pain with header info and remarks to omit
+#7. "rob" - (many, 2021?): 6400 output, pain with header info and remarks to omit
+#8. "combined" - (8, 2019): 6400 output, pain with header info and remarks to omit
 
 
 #output
