@@ -50,7 +50,7 @@ files = files[-which(files=="2021-09-13-bifro-dewitt.xlsx" | files == "2021-09-1
 out = NULL
 
 #loop over each file, examine, and add to 'out'
-for(i in 70:length(files)) {
+for(i in i:length(files)) {
 
 #sample information to include in licor dataset
 date = master$Sampling.Date[master$LICOR.file.in.handENA==files[i]]
@@ -74,7 +74,7 @@ plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
 plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
 mtext(files[i],at=-300,line=0)
 out = rbind(out,dat)
-readline() #uncomment if you want to inspect each curve upon import
+#readline() #uncomment if you want to inspect each curve upon import
 }
   
 if(gregexpr(".",files[i],fixed=T)<0) { #tab delim text files
@@ -94,7 +94,7 @@ if(gregexpr(".",files[i],fixed=T)<0) { #tab delim text files
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
   out = rbind(out,dat)
-  readline() #uncomment if you want to inspect each curve upon import
+  #readline() #uncomment if you want to inspect each curve upon import
 }
 
 if(str_sub(files[i],start=-4) == "xlsx" | str_sub(files[i],start=-4) == "xls" ) { #excel files
@@ -114,7 +114,7 @@ plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
 plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
 mtext(files[i],at=-300,line=0)
 out = rbind(out,dat)
-readline() #uncomment if you want to inspect each curve upon import
+#readline() #uncomment if you want to inspect each curve upon import
 }
 }
 
