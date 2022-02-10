@@ -31,11 +31,18 @@ setdiff(ena.labels,files)
   #all good
 
 #file output types:
-#1. 8 .xls files (do separately)
+#1. 9 .xls files (do separately)
 #2. tab-delim text files
+
+#complicated set of file formats:
+#2019: 15 text files have 58 columns, 7 xlsx files have 83 columns
+#2020: all text files have 36 columns, 2 xlsx files have 56 columns
+#2021: all text files have 36 columns
 
 #output
 out = NULL
+out19 = NULL
+#test = rep(0,length(files))
 
 #loop over each file, examine, and add to 'out'
 for(i in i:length(files)) {
@@ -46,63 +53,105 @@ site = master$Site.final[master$LICOR.file.in.handENA==files[i]]
 species = master$Species[master$LICOR.file.in.handENA==files[i]]
 code = master$Species.abbreviation[master$LICOR.file.in.handENA==files[i]]
 
-if(str_sub(files[i],start=-3)  == "csv") { #csv files
-dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
-start = which(substr(dat[,1],1,3)=="Obs") - 1
-dat = read.csv(paste0(folder.local,files[i]),header=T,skip=start)
-dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
-dat$filename = files[i] #append column of filename
-dat$date = date
-dat$site = site
-dat$species = species
-dat$sppcode = code
-#names(dat) = names(out)
-par(mfrow=c(1,2))
-plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
-plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
-mtext(files[i],at=-300,line=0)
-out = rbind(out,dat)
-readline() #uncomment if you want to inspect each curve upon import
-}
-  
-if(gregexpr(".",files[i],fixed=T)<0) { #tab delim text files
+#1. 2020 and 2021 text files: all have 36 columns
+if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)!="2019") { #tab delim text files from 2020, 2021
   dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
   start = which(substr(dat[,1],1,3)=="Obs") - 1
   dat = read.csv(paste0(folder.local,files[i]),header=T,skip=start,sep="\t")
+  #test[i] = dim(dat)[2]
   dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
+  #if(dim(dat)[2]<80) {
+  #  dat[,59:83] = NA  #add extra rows (missing in this version of the licor files)
+  #}
   dat$filename = files[i] #append column of filename
   dat$date = date
   dat$site = site
   dat$species = species
   dat$sppcode = code
-  names(dat) = names(out)
+  #names(dat) = names(out)
   par(mfrow=c(1,2))
   plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
   out = rbind(out,dat)
-  readline() #uncomment if you want to inspect each curve upon import
+  #readline() #uncomment if you want to inspect each curve upon import
 }
 
-if(str_sub(files[i],start=-4) == "xlsx" | str_sub(files[i],start=-4) == "xls" ) { #excel files
-dat = read_excel(paste0(folder.local,files[i]),col_names=FALSE)
-start = which(dat[,1]=="Obs") - 1
-dat = as.data.frame(read_excel(paste0(folder.local,files[i]),col_names=TRUE,skip=start))
-dat = dat[-1,]
-dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
-dat[,c(1,3:58)] = apply(dat[,c(1,3:58)], 2, function(x) as.numeric(as.character(x))) #change character to numeric (all except HHMMSS)
-dat$filename = files[i] #append column of filename
-dat$date = date
-dat$site = site
-dat$species = species
-dat$sppcode = code
-par(mfrow=c(1,2))
-plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
-plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
-mtext(files[i],at=-300,line=0)
-out = rbind(out,dat)
-readline() #uncomment if you want to inspect each curve upon import
+
+
+#2. 2019 text files: 58 columns
+if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)=="2019") { #tab delim text files from 2019
+  dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
+  start = which(substr(dat[,1],1,3)=="Obs") - 1
+  dat = read.csv(paste0(folder.local,files[i]),header=T,skip=start,sep="\t")
+  #test[i] = dim(dat)[2]
+  dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
+  #if(dim(dat)[2]<80) {
+  #  dat[,59:83] = NA  #add extra rows (missing in this version of the licor files)
+  #}
+  dat$filename = files[i] #append column of filename
+  dat$date = date
+  dat$site = site
+  dat$species = species
+  dat$sppcode = code
+  #names(dat) = names(out)
+  par(mfrow=c(1,2))
+  plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
+  plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
+  mtext(files[i],at=-300,line=0)
+  out19 = rbind(out19,dat)
+  #readline() #uncomment if you want to inspect each curve upon import
 }
 }
 
-#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/ENA_licor.csv")
+
+
+
+
+
+if(str_sub(files[i],start=-4) == "xlsx" | str_sub(files[i],start=-4) == ".xls" ) { #excel files
+  dat = read_excel(paste0(folder.local,files[i]),col_names=FALSE)
+  start = which(dat[,1]=="Obs") - 1
+  dat = as.data.frame(read_excel(paste0(folder.local,files[i]),col_names=TRUE,skip=start))
+  dat = dat[-1,]
+  test[i] = dim(dat)[2]
+  dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
+  #dat[,c(1,3:83)] = apply(dat[,c(1,3:83)], 2, function(x) as.numeric(as.character(x))) #change character to numeric (all except HHMMSS)
+  dat$filename = files[i] #append column of filename
+  dat$date = date
+  dat$site = site
+  dat$species = species
+  dat$sppcode = code
+  par(mfrow=c(1,2))
+  plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
+  plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
+  mtext(files[i],at=-300,line=0)
+  #out = rbind(out,dat)
+  #readline() #uncomment if you want to inspect each curve upon import
+}
+
+if(gregexpr(".",files[i],fixed=T)<0) { #tab delim text files
+  dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
+  start = which(substr(dat[,1],1,3)=="Obs") - 1
+  dat = read.csv(paste0(folder.local,files[i]),header=T,skip=start,sep="\t")
+  test[i] = dim(dat)[2]
+  dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
+  #if(dim(dat)[2]<80) {
+  #  dat[,59:83] = NA  #add extra rows (missing in this version of the licor files)
+  #}
+  dat$filename = files[i] #append column of filename
+  #dat$date = date
+  dat$site = site
+  dat$species = species
+  dat$sppcode = code
+  #names(dat) = names(out)
+  par(mfrow=c(1,2))
+  plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
+  plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
+  mtext(files[i],at=-300,line=0)
+  #out = rbind(out,dat)
+  #readline() #uncomment if you want to inspect each curve upon import
+}
+#}
+
+#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor2.csv")
