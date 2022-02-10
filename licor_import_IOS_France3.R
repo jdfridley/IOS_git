@@ -6,6 +6,7 @@
 library(readxl)
 library(stringr)
 library(googlesheets4)
+library(dplyr)
 
 #sample master downloaded from google
 master = read_sheet("https://docs.google.com/spreadsheets/d/1QLL5AUeP-fHar0HRfDjDP0Mw25FvowqidiCyEbBA5og/edit#gid=0")
@@ -42,6 +43,8 @@ setdiff(ena.labels,files)
 #output
 out = NULL
 out19 = NULL
+out19xls = NULL
+out20xls = NULL
 #test = rep(0,length(files))
 
 #loop over each file, examine, and add to 'out'
@@ -78,7 +81,6 @@ if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)!="2019") { #tab delim
 }
 
 
-
 #2. 2019 text files: 58 columns
 if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)=="2019") { #tab delim text files from 2019
   dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
@@ -102,21 +104,17 @@ if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)=="2019") { #tab delim
   out19 = rbind(out19,dat)
   #readline() #uncomment if you want to inspect each curve upon import
 }
-}
 
 
-
-
-
-
-if(str_sub(files[i],start=-4) == "xlsx" | str_sub(files[i],start=-4) == ".xls" ) { #excel files
+#3. 2019 excel files
+if(str_sub(files[i],start=-4) == "xlsx" & substr(files[i],1,4)=="2019") { #excel files of 2019
   dat = read_excel(paste0(folder.local,files[i]),col_names=FALSE)
   start = which(dat[,1]=="Obs") - 1
   dat = as.data.frame(read_excel(paste0(folder.local,files[i]),col_names=TRUE,skip=start))
   dat = dat[-1,]
-  test[i] = dim(dat)[2]
+  #test[i] = dim(dat)[2]
   dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
-  #dat[,c(1,3:83)] = apply(dat[,c(1,3:83)], 2, function(x) as.numeric(as.character(x))) #change character to numeric (all except HHMMSS)
+  dat[,c(1,3:83)] = apply(dat[,c(1,3:83)], 2, function(x) as.numeric(as.character(x))) #change character to numeric (all except HHMMSS)
   dat$filename = files[i] #append column of filename
   dat$date = date
   dat$site = site
@@ -126,32 +124,37 @@ if(str_sub(files[i],start=-4) == "xlsx" | str_sub(files[i],start=-4) == ".xls" )
   plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
-  #out = rbind(out,dat)
+  out19xls = rbind(out19xls,dat)
   #readline() #uncomment if you want to inspect each curve upon import
 }
 
-if(gregexpr(".",files[i],fixed=T)<0) { #tab delim text files
-  dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
-  start = which(substr(dat[,1],1,3)=="Obs") - 1
-  dat = read.csv(paste0(folder.local,files[i]),header=T,skip=start,sep="\t")
-  test[i] = dim(dat)[2]
+
+#4. 2020 excel files
+if(str_sub(files[i],start=-4) == "xlsx" & substr(files[i],1,4)=="2020") { #excel files of 2019
+  dat = read_excel(paste0(folder.local,files[i]),col_names=FALSE)
+  start = which(dat[,1]=="Obs") - 1
+  dat = as.data.frame(read_excel(paste0(folder.local,files[i]),col_names=TRUE,skip=start))
+  dat = dat[-1,]
+  #test[i] = dim(dat)[2]
   dat = dat[(!is.na(dat$FTime)),] #remove rows of no data
-  #if(dim(dat)[2]<80) {
-  #  dat[,59:83] = NA  #add extra rows (missing in this version of the licor files)
-  #}
+  dat[,c(1,3:56)] = apply(dat[,c(1,3:56)], 2, function(x) as.numeric(as.character(x))) #change character to numeric (all except HHMMSS)
   dat$filename = files[i] #append column of filename
-  #dat$date = date
+  dat$date = date
   dat$site = site
   dat$species = species
   dat$sppcode = code
-  #names(dat) = names(out)
   par(mfrow=c(1,2))
   plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
-  #out = rbind(out,dat)
+  out20xls = rbind(out20xls,dat)
   #readline() #uncomment if you want to inspect each curve upon import
 }
-#}
+
+} #close files loop
+
+#combine 4 out files, getting the columns in the right places
+test = bind_rows(out,out19) #from dplyr
+#***note: doing its thing again, not saving data: put in speed breaks or use readline?
 
 #write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor2.csv")
