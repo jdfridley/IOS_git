@@ -76,7 +76,7 @@ if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)!="2019") { #tab delim
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
   out = rbind(out,dat)
-  #readline() #uncomment if you want to inspect each curve upon import
+  readline() #uncomment if you want to inspect each curve upon import
 }
 
 print(i)
@@ -97,7 +97,7 @@ if(gregexpr(".",files[i],fixed=T)<0 & substr(files[i],1,4)=="2019") { #tab delim
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
   out19 = rbind(out19,dat)
-  #readline() #uncomment if you want to inspect each curve upon import
+  readline() #uncomment if you want to inspect each curve upon import
 }
 
 print(i)
@@ -120,7 +120,7 @@ if(str_sub(files[i],start=-4) == "xlsx" & substr(files[i],1,4)=="2019") { #excel
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
   out19xls = rbind(out19xls,dat)
-  #readline() #uncomment if you want to inspect each curve upon import
+  readline() #uncomment if you want to inspect each curve upon import
 }
 
 print(i)
@@ -143,7 +143,7 @@ if(str_sub(files[i],start=-4) == "xlsx" & substr(files[i],1,4)=="2020") { #excel
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
   mtext(files[i],at=-300,line=0)
   out20xls = rbind(out20xls,dat)
-  #readline() #uncomment if you want to inspect each curve upon import
+  readline() #uncomment if you want to inspect each curve upon import
 }
 
 print(i)
@@ -162,5 +162,8 @@ out2 = bind_rows(out19xls,out20xls)
 out.final = bind_rows(out1,out2)
 str(out.final)
   #164 files
+out.final2 = out.final[!is.na(out.final$Photo),] #still some NA rows; omit
+
 
 #write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor2.csv")
+#write.csv(out.final2,"France_licor2.csv")
