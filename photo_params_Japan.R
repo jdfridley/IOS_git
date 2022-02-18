@@ -87,22 +87,27 @@ str(dat)
   dat$Kc=exp(35.9774-80.99/(R*(dat$Tleaf+273.15))) #Michaelis-Menten constant for Rubisco for O2 (Pa)
   dat$Ko=exp(12.3772-23.72/(R*(dat$Tleaf+273.15))) #Michaelis-Menten constant for Rubisco for CO2 (kPa)
   dat$GammaStar=exp(11.187-24.46/(R*(dat$Tleaf+273.15))) #Photorespiration compensation point (Pa)
-  O=21 #oxygen (O2) partial pressure (kPa)  
+  dat$O=21 #oxygen (O2) partial pressure (kPa)  
     
 
-#### Example analysis 1
+#### Example A-Ci analysis 1
+
+#loop over species
+  spp = unique(dat$species)
+  par(mfrow=c(3,3),oma=c(1.5,1.5,3,1),mar=c(3,3,0,0))
   
-  eg = dat[dat$species=="Chenopodium album",]
+  for(i in 2:5) {  
+  eg = dat[dat$species==spp[i],]
   table(eg$filename)
-  eg = eg[eg$filename==levels(as.factor(eg$filename))[1],]
+  #eg = eg[eg$filename==levels(as.factor(eg$filename))[1],]
+  eg = eg[eg$PARi>1010,] #only saturaing light
     
-  plot(eg$Ci_Pa,eg$Photo,col=as.numeric(as.factor(eg$filename)),pch=19,cex=1.5,xlim=c(0,120))
-  
-  par(mar=c(3,3,0,0),oma=c(1.5,1.5,1,1))
+  #par(mar=c(3,3,0,0),oma=c(1.5,1.5,3,1))
   plot(eg$Ci_Pa,eg$Photo,ylab="", xlab="",cex.lab=1.2,cex.axis=1.5,cex=2)
   mtext(expression("Intercellular "*CO[2]*" Pressure (Pa)"),side=1,line=3.3,cex=1.5)
   mtext(expression(A[net]*" ("*mu*"mol "*CO[2]*" "*m^-2*s^-1*")"),side=2,line=2.5,cex=1.5)
   points(eg$Ci_Pa,eg$Photo,col=as.numeric(as.factor(eg$filename)),pch=19,cex=2)
+  mtext(spp[i],line=-20,at=100,cex=2)
   
   # ---RuBisCO limited portion---
   #(Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))-Rd
@@ -114,32 +119,82 @@ str(dat)
   # Could change optimization algorithm (default here is Gauss-Newton)
   # Could also do a "grid search" if estimates are sensitive to starting values
   
-  aci.fit<-nls(Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,start=list(Vcmax=50,J=100,Rd=0.5),data=eg) #if error: reconsider starting values, bad dataset? (too few points or response curve not clear)
+    #Version 1: nls (all individuals fit together, no REs), using Mason's code
   
-  summary(aci.fit)
+    aci.fit <- nls(Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,start=list(Vcmax=50,J=100,Rd=0.5),data=eg) 
   
-  Vcmax<-summary(aci.fit)$coef[1,1]
-  J<-summary(aci.fit)$coef[2,1]
-  Rd<-summary(aci.fit)$coef[3,1]
+    summary(aci.fit)
   
-  GammaStar = mean(eg$GammaStar)
-  Kc = mean(eg$Kc)
-  Ko = mean(eg$Ko)
+    Vcmax<-summary(aci.fit)$coef[1,1]
+    J<-summary(aci.fit)$coef[2,1]
+    Rd<-summary(aci.fit)$coef[3,1]
+    nls.param = c(Vcmax,J,Rd)
   
-  pa.vec = seq(0,110,100)
-  rub.curve = (Vcmax*(pa.vec-GammaStar))/(pa.vec+(Kc*(1+(O/Ko))))-Rd
-  rubp.curve = ((J*(pa.vec-GammaStar))/((4*pa.vec)+(8*GammaStar)))-Rd
+    par(mar=c(3,3,0,0),oma=c(1.5,1.5,1,1))
+    plot(eg$Ci_Pa,eg$Photo,ylab="", xlab="",cex.lab=1.2,cex.axis=1.5,cex=2)
+    mtext(expression("Intercellular "*CO[2]*" Pressure (Pa)"),side=1,line=3.3,cex=1.5)
+    mtext(expression("Net photosynthetic rate (umol "* CO[2]* m^-2*s^-1*")"),side=2,line=2.5,cex=1.5)
+    curve(ifelse(((Vcmax*(x+mean(eg$GammaStar)))/(x+(mean(eg$Kc)*(1+(O/mean(eg$Ko))))))<((J*(x+mean(eg$GammaStar)))/((4*x)+(8*mean(eg$GammaStar)))),((Vcmax*(x+mean(eg$GammaStar)))/(x+(mean(eg$Kc)*(1+(O/mean(eg$Ko)))))),((J*(x+mean(eg$GammaStar)))/((4*x)+(8*mean(eg$GammaStar)))))-Rd,add=T)
+
+    #Version 2: inclue random intercepts for individuals using nlme
+    
+    library(nlme)
+    eg$O = O
+    aci.fit2<-nlme(model=Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,start=c(Vcmax=nls.param[1],J=nls.param[2],Rd=nls.param[3]),data=eg,groups=~filename,fixed=Vcmax+J+Rd~1,random=Vcmax+J+Rd~1,control=list(msMaxIter=1000)) 
   
-  lines(pa.vec,rub.curve)  
-  lines(pa.vec,rubp.curve)
+    summary(aci.fit2)  
   
-  #Mason's version
-  par(mar=c(3,3,0,0),oma=c(1.5,1.5,1,1))
-  plot(eg$Ci_Pa,eg$Photo,ylab="", xlab="",cex.lab=1.2,cex.axis=1.5,cex=2)
-  mtext(expression("Intercellular "*CO[2]*" Pressure (Pa)"),side=1,line=3.3,cex=1.5)
-  mtext(expression("Net photosynthetic rate (umol "* CO[2]* m^-2*s^-1*")"),side=2,line=2.5,cex=1.5)
-  curve(ifelse(((Vcmax*(x+mean(eg$GammaStar)))/(x+(mean(eg$Kc)*(1+(O/mean(eg$Ko))))))<((J*(x+mean(eg$GammaStar)))/((4*x)+(8*mean(eg$GammaStar)))),((Vcmax*(x+mean(eg$GammaStar)))/(x+(mean(eg$Kc)*(1+(O/mean(eg$Ko)))))),((J*(x+mean(eg$GammaStar)))/((4*x)+(8*mean(eg$GammaStar)))))-Rd,add=T)
-  #Reasonable fit? Could check goodness of fit, model assumptions  
+    Vcmax<-aci.fit2$coef$fixed[1]
+    J<-aci.fit2$coef$fixed[2]
+    Rd<-aci.fit2$coef$fixed[3]
+    
+    curve(ifelse(((Vcmax*(x+mean(eg$GammaStar)))/(x+(mean(eg$Kc)*(1+(O/mean(eg$Ko))))))<((J*(x+mean(eg$GammaStar)))/((4*x)+(8*mean(eg$GammaStar)))),((Vcmax*(x+mean(eg$GammaStar)))/(x+(mean(eg$Kc)*(1+(O/mean(eg$Ko)))))),((J*(x+mean(eg$GammaStar)))/((4*x)+(8*mean(eg$GammaStar)))))-Rd,add=T,col="red")
+ 
+    par(add=F)
+}    
   
+  #many curves aren't working
+  #variance requires light levels: need to estimate params individually; use nlme predict?
   
+  #fit all data simultaneously       
+  library(nlme)
   
+  aci.fit2 <- nlme(
+    model=Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,
+    start=c(Vcmax=50,J=100,Rd=.5),
+    data=dat[200:400,],
+    #groups=~species,
+    fixed=Vcmax+J+Rd~1,
+    random=Vcmax+J+Rd~1|species/filename,
+    control=list(msMaxIter=1000)  )
+
+  summary(aci.fit2) 
+  
+  #breaks easily
+  
+  ##Try ecophys package: works well; note BETH is light curves only
+  library(plantecophys)
+
+  spp = unique(dat$species)
+for(i in 1:length(spp)) {
+  df = dat[dat$species==spp[i],]
+  df = df[df$PARi>1010,]
+  df = df[df$Ci>=0,]
+  
+  if(spp[i]=="Berberis thunbergii") next #only light curves for this species
+  
+  f = fitacis(df,
+             varnames = list(ALEAF = "Photo", Tleaf = "Tleaf", Ci = "Ci", PPFD = "PARi", Rd = "Rd", Patm = "Press"),
+             Tcorrect=F,
+             Patm = mean(dat$Press),
+             group = "filename",
+             fitmethod = "bilinear" #interestingly, bilinear works and default doesn't
+            )
+  par(mar=c(5,5,5,5),mfrow=c(1,1))
+  plot(f,how="oneplot")
+  title(spp[i])
+  summary(f)
+  coef(f)
+  readline()
+}  
+    
