@@ -172,11 +172,11 @@ str(dat)
   
   #breaks easily
   
-  ##Try ecophys package: works well; note BETH is light curves only
+  ##Version 3: ecophys package: works well; note BETH is light curves only
   library(plantecophys)
 
   spp = unique(dat$species)
-for(i in 1:length(spp)) {
+  for(i in 1:length(spp)) {
   df = dat[dat$species==spp[i],]
   df = df[df$PARi>1010,]
   df = df[df$Ci>=0,]
@@ -198,3 +198,22 @@ for(i in 1:length(spp)) {
   readline()
 }  
     
+  ##Version 4: mixed effect version with nlmer
+  library(lme4)
+  
+  df = dat[dat$species=="Chenopodium album",]
+  df = df[df$PARi>1010,]
+  df = df[df$Ci>=0,]
+  
+  start.df = c(Vcmax=50,J=100,Rd=.5)
+  
+  nm3 <- nlmer ( conc ~ SSfol ( Dose , Time , lKe , lKa , lCl ) ~
+                     + 0+ lKe + lKa + lCl +(0+ lKa + lCl | Subject ),
+                   + Theoph , start = Th . start , verbose = TRUE )
+  
+  
+  aci.fit3 <- nlmer(Photo~(ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd ) ~ 0 + Vcmax+J+Rd + (0 + Vcmax+J+Rd | filename),
+    start=start.df,
+    data=df, nAGQ=0,
+    verbose=T)
+  
