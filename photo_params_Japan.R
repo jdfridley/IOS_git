@@ -217,9 +217,9 @@ str(dat)
             verbose=T)
     #not working
   
-  ##Version 5: HB via JAGS
+  ##Version 5: HB via JAGS, target species only
   
-  spp = "Chenopodium album"
+  spp = "Bidens frondosa"
   df = dat[dat$species==spp,]
   df = df[df$PARi>1010,]
   df = df[df$Ci>=0,]
@@ -230,10 +230,14 @@ str(dat)
   mod.photo <- "model
 {
     #Priors
-    Vcmax.int ~ dnorm(25,0.001) #Peltier & Ibanez 2015, Heberling & Fridley 2016
-    Jmax.int ~ dnorm(55,0.001)  #Peltier & Ibanez 2015, Heberling & Fridley 2016
-    Rd ~ dnorm(0,1)T(0,) #Peltier & Ibanez 2015, note cannot take on negative values with T(0,)
-
+    Vcmax.int ~ dnorm(75,0.001) #very weak
+    Jmax.int ~ dnorm(100,0.001) #very weak
+    
+    #for Rd, which can't be negative, treat as fixed (unpooled) effect not random (difficult to estimate with >0 constraint)
+    for(i in 1:N.indiv) {
+      Rd[i] ~ dnorm(0,1)T(0,) #ery weanote cannot take on negative values with T(0,)
+    }
+    
     #individual and species-level variance in photo params
     ind.tau.Vcmax <- ind.sigma.Vcmax^-2 
     ind.sigma.Vcmax ~ dunif(0, 100)
@@ -253,7 +257,7 @@ str(dat)
         
         Anet[i] ~ dnorm(mu[i],tau)
         
-        mu[i] <- min(mu.v[i],mu.j[i]) - Rd #minimum of RuBP and Rubisco limitation; TPU limitation ignored
+        mu[i] <- min(mu.v[i],mu.j[i]) - Rd[ind[i]] #minimum of RuBP and Rubisco limitation; TPU limitation ignored
         
         Vcmax[i] <- Vcmax.int + b0.ind.Vcmax[ind[i]]
 
@@ -282,17 +286,17 @@ str(dat)
   
   #input lists for JAGS
   params = c("Vcm.out","Jm.out","Rd","sigma") #parameters to monitor
-  inits = function() list(Vcmax.int=rnorm(1),Jmax.int=rnorm(1),Rd=rnorm(1)) #starting values of fitted parameters
+  inits = function() list(Vcmax.int=rnorm(1),Jmax.int=rnorm(1),Rd=rnorm(N.indiv)) #starting values of fitted parameters
   input = list(N=N,Anet=df$Photo,Ci_Pa=df$Ci_Pa,GammaStar=df$GammaStar,Kc=dat$Kc,Ko=dat$Ko,O=df$O,ind=ind,N.indiv=N.indiv) #input data
   
   #run JAGS model
-  jags3 <- jags(model = "model.txt",data = input,inits=inits,param=params,
+  jags.p <- jags(model = "model.txt",data = input,inits=inits,param=params,
                 n.chains = 3, #number of separate MCMC chains
                 n.iter =3000, #number of iterations per chain
                 n.thin=3, #thinning
                 n.burnin = 500) #number of initial iterations to discard
   
-  jags3
+  jags.p
   
   #compare to nls
   aci.fit <- nls(Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,start=list(Vcmax=50,J=100,Rd=0.5),data=df) 
@@ -309,4 +313,157 @@ str(dat)
   par(mar=c(5,5,5,5),mfrow=c(1,1))
   plot(f,how="oneplot"); title(spp)
   coef(f)
+  
+  #compare results
+  attach.jags(jags.p)
+  par(mar=c(3,3,1,1),mfrow=c(3,N.indiv))
+  for(i in 1:N.indiv) {
+    hist(Vcm.out[,i],main=paste0("Vcmax",i),xlim=c(40,180)); abline(v=coef(f)[i,2],col="red") }
+  for(i in 1:N.indiv) {
+    hist(Jm.out[,i],main=paste0("Jmax",i),xlim=c(60,240)); abline(v=coef(f)[i,3],col="red") }
+  for(i in 1:N.indiv) {
+    hist(Rd[,i],main=paste0("Rd",i),xlim=c(0,2)); abline(v=coef(f)[i,4],col="red") }
+  
+  #plot comparison of HB (pooled) results with plantecophy (unpooled)
+  dfP = df
+  dfP$Vcmax = apply(Vcm.out,2,median)[ind]
+  dfP$Jmax = apply(Jm.out,2,median)[ind]
+  dfP$Rd = apply(Rd,2,median)[ind]
+  
+  pred.func = function(Vcmax,J,Rd,Ci_Pa,GammaStar,Ko,Kc,O) ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd
+  predY = pred.func(dfP$Vcmax,dfP$Jmax,dfP$Rd,dfP$Ci_Pa,dfP$GammaStar,dfP$Ko,dfP$Kc,dfP$O)  
+
+  quartz()
+  par(mar=c(5,5,5,5),mfrow=c(1,1))
+  plot(f,how="oneplot"); title(spp)
+  points(dfP$Ci,predY,col="blue",pch=19,cex=1)
+  
+  
+  ##Version 6: HB via JAGS, all species
+  
+  spp1 = "Bidens frondosa"
+  spp2 = "Chenopodium album"
+  df = dat[dat$species==spp1|dat$species==spp2,]
+  df = df[df$PARi>1010,]
+  df = df[df$Ci>=0,]
+  N = dim(df)[1]
+  ind = as.numeric(as.factor(df$filename)) #grouping vector (individual)
+  N.indiv = max(ind)
+  spp = as.numeric(as.factor(df$species))
+  N.spp = max(spp)
+  
+  mod.photo <- "model
+{
+    #Priors
+    Vcmax.int ~ dnorm(75,0.001) #very weak
+    Jmax.int ~ dnorm(100,0.001) #very weak
+    
+    #for Rd, which can't be negative, treat as fixed (unpooled) effect not random (difficult to estimate with >0 constraint)
+    for(i in 1:N.indiv) {
+      Rd[i] ~ dnorm(0,1)T(0,) #ery weanote cannot take on negative values with T(0,)
+    }
+    
+    #individual and species-level variance in photo params
+    ind.tau.Vcmax <- ind.sigma.Vcmax^-2 
+    ind.sigma.Vcmax ~ dunif(0, 100)
+    spp.tau.Vcmax <- spp.sigma.Vcmax^-2 
+    spp.sigma.Vcmax ~ dunif(0, 100)
+    
+    ind.tau.Jmax <- ind.sigma.Jmax^-2 
+    ind.sigma.Jmax ~ dunif(0, 100) 
+    #spp.tau.Jmax <- spp.sigma.Jmax^-2 
+    #spp.sigma.Jmax ~ dunif(0, 100)
+
+    #level 1 variance (error)
+    tau <- sigma^-2 #coverts sd to precision
+    sigma ~ dunif(0, 100)  #uniform prior for standard deviation
+
+    for(i in 1:N) {
+        
+        Anet[i] ~ dnorm(mu[i],tau)
+        
+        mu[i] <- min(mu.v[i],mu.j[i]) - Rd[ind[i]] #minimum of RuBP and Rubisco limitation; TPU limitation ignored
+        
+        Vcmax[i] <- Vcmax.int + b0.ind.Vcmax[ind[i]]  #here b0.ind.Vcmax is informed by b0.spp.Vcmax
+        b0.spp.Vcmax[spp[i]] ~ dnorm(0, spp.tau.Vcmax)
+        b0.ind.Vcmax[ind[i]] ~ dnorm(b0.spp.Vcmax[spp[i]],ind.tau.Vcmax) #mean of ind RE is spp RE
+        #***something wrong with above line... what?
+
+        Jmax[i] <- Jmax.int + b0.ind.Jmax[ind[i]]
+
+        # ---RuBisCO limited portion---
+        mu.v[i] <- (Vcmax[i]*(Ci_Pa[i]-GammaStar[i]))/(Ci_Pa[i]+(Kc[i]*(1+(O[i]/Ko[i]))))
+  
+        # ---RUBP limited portion---
+        mu.j[i] <- ((Jmax[i]*(Ci_Pa[i]-GammaStar[i]))/((4*Ci_Pa[i])+(8*GammaStar[i])))
+
+    }
+
+	  #random intercept for individual effect on Vcmax
+      for(i in 1:N.indiv) {
+        ##b0.ind.Vcmax[i] ~ dnorm(0,ind.tau.Vcmax) 
+        b0.ind.Jmax[i] ~ dnorm(0,ind.tau.Jmax) 
+        
+        #output monitoring
+        Vcm.out[i] = Vcmax.int + b0.ind.Vcmax[i]
+        Jm.out[i] = Jmax.int + b0.ind.Jmax[i]
+      }  
+
+}" #end model
+  write(mod.photo, "model.txt")
+  
+  #input lists for JAGS
+  params = c("Vcmout","Jm.out","Rd","sigma","b0.spp.Vcmax") #parameters to monitor
+  inits = function() list(Vcmax.int=rnorm(1),Jmax.int=rnorm(1),Rd=rnorm(N.indiv)) #starting values of fitted parameters
+  input = list(N=N,Anet=df$Photo,Ci_Pa=df$Ci_Pa,GammaStar=df$GammaStar,Kc=dat$Kc,Ko=dat$Ko,O=df$O,ind=ind,N.indiv=N.indiv,spp=spp) #input data
+  
+  #run JAGS model
+  jags.p <- jags(model = "model.txt",data = input,inits=inits,param=params,
+                 n.chains = 3, #number of separate MCMC chains
+                 n.iter =3000, #number of iterations per chain
+                 n.thin=3, #thinning
+                 n.burnin = 500) #number of initial iterations to discard
+  
+  jags.p
+  
+  #compare to nls
+  aci.fit <- nls(Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,start=list(Vcmax=50,J=100,Rd=0.5),data=df) 
+  summary(aci.fit)
+  
+  #compare to plantecophys
+  f = fitacis(df,
+              varnames = list(ALEAF = "Photo", Tleaf = "Tleaf", Ci = "Ci", PPFD = "PARi", Rd = "Rd", Patm = "Press"),
+              Tcorrect=F,
+              Patm = mean(dat$Press),
+              group = "filename",
+              fitmethod = "bilinear" #interestingly, bilinear works and default doesn't
+  )
+  par(mar=c(5,5,5,5),mfrow=c(1,1))
+  plot(f,how="oneplot"); title(spp)
+  coef(f)
+  
+  #compare results
+  attach.jags(jags.p)
+  par(mar=c(3,3,1,1),mfrow=c(3,N.indiv))
+  for(i in 1:N.indiv) {
+    hist(Vcm.out[,i],main=paste0("Vcmax",i),xlim=c(40,180)); abline(v=coef(f)[i,2],col="red") }
+  for(i in 1:N.indiv) {
+    hist(Jm.out[,i],main=paste0("Jmax",i),xlim=c(60,240)); abline(v=coef(f)[i,3],col="red") }
+  for(i in 1:N.indiv) {
+    hist(Rd[,i],main=paste0("Rd",i),xlim=c(0,2)); abline(v=coef(f)[i,4],col="red") }
+  
+  #plot comparison of HB (pooled) results with plantecophy (unpooled)
+  dfP = df
+  dfP$Vcmax = apply(Vcm.out,2,median)[ind]
+  dfP$Jmax = apply(Jm.out,2,median)[ind]
+  dfP$Rd = apply(Rd,2,median)[ind]
+  
+  pred.func = function(Vcmax,J,Rd,Ci_Pa,GammaStar,Ko,Kc,O) ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd
+  predY = pred.func(dfP$Vcmax,dfP$Jmax,dfP$Rd,dfP$Ci_Pa,dfP$GammaStar,dfP$Ko,dfP$Kc,dfP$O)  
+  
+  quartz()
+  par(mar=c(5,5,5,5),mfrow=c(1,1))
+  plot(f,how="oneplot"); title(spp)
+  points(dfP$Ci,predY,col="blue",pch=19,cex=1)
+  
   
