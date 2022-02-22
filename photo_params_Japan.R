@@ -346,7 +346,8 @@ str(dat)
   
   spp1 = "Bidens frondosa"
   spp2 = "Chenopodium album"
-  df = dat[dat$species==spp1|dat$species==spp2,]
+  spp3 = "Conyza canadensis"
+  df = dat[dat$species==spp1|dat$species==spp2|dat$species==spp3,]
   df = df[df$PARi>1010,]
   df = df[df$Ci>=0,]
   N = dim(df)[1]
@@ -455,7 +456,7 @@ str(dat)
               fitmethod = "bilinear" #interestingly, bilinear works and default doesn't
   )
   par(mar=c(5,5,5,5),mfrow=c(1,1))
-  plot(f,how="oneplot"); title(spp)
+  plot(f,how="oneplot")
   coef(f)
   
   #compare results
@@ -479,7 +480,7 @@ str(dat)
   
   quartz()
   par(mar=c(5,5,5,5),mfrow=c(1,1))
-  plot(f,how="oneplot"); title(spp)
+  plot(f,how="oneplot")
   points(dfP$Ci,predY,col="blue",pch=19,cex=1)
   
   #create output spreadsheets
@@ -495,5 +496,22 @@ str(dat)
   ind.out = cbind(ind.out,data.frame(Vcmax=apply(Vcm.out,2,mean),Jmax=apply(Jm.out,2,mean),Rd=apply(Rd,2,median),
                        Vcmax.se=apply(Vcm.out,2,sd),Jmax.se=apply(Jm.out,2,sd),Rd.se=apply(Rd,2,sd)))
   #if want to add plantecophys params for comparison
+  fout = coef(f); names(fout) = paste0(names(fout),".f")
+  ind.out2 = cbind(ind.out,fout)
   
+  #plot comparison values
+  quartz()
+  par(mar=c(5,5,2,2),mfrow=c(2,2))
+  plot(ind.out2$Vcmax,ind.out2$Vcmax.f,col=as.numeric(as.factor(ind.out2$species)),pch=19,cex=1.5); abline(0,1,lwd=2,lty=2)
+  arrows(ind.out2$Vcmax,ind.out2$Vcmax.f-ind.out2$Vcmax_SE.f,ind.out2$Vcmax,ind.out2$Vcmax.f+ind.out2$Vcmax_SE.f,length=.1,angle=90,code=3,col="gray")
+  arrows(ind.out2$Vcmax-ind.out2$Vcmax.se,ind.out2$Vcmax.f,ind.out2$Vcmax+ind.out2$Vcmax.se,ind.out2$Vcmax.f,length=.1,angle=90,code=3,col="gray")
+  points(ind.out2$Vcmax,ind.out2$Vcmax.f,col=as.numeric(as.factor(ind.out2$species)),pch=19,cex=1.5); abline(0,1,lwd=2,lty=2)
+  plot(ind.out2$Jmax,ind.out2$Jmax.f,col=as.numeric(as.factor(ind.out2$species)),pch=19,cex=1.5); abline(0,1,lwd=2,lty=2)
+  arrows(ind.out2$Jmax,ind.out2$Jmax.f-ind.out2$Jmax_SE.f,ind.out2$Jmax,ind.out2$Jmax.f+ind.out2$Jmax_SE.f,length=.1,angle=90,code=3,col="gray")
+  arrows(ind.out2$Jmax-ind.out2$Jmax.se,ind.out2$Jmax.f,ind.out2$Jmax+ind.out2$Jmax.se,ind.out2$Jmax.f,length=.1,angle=90,code=3,col="gray")
+  points(ind.out2$Jmax,ind.out2$Jmax.f,col=as.numeric(as.factor(ind.out2$species)),pch=19,cex=1.5); abline(0,1,lwd=2,lty=2)
+  plot(ind.out2$Rd,ind.out2$Rd.f,col=as.numeric(as.factor(ind.out2$species)),pch=19,cex=1.5); abline(0,1,lwd=2,lty=2)
+  arrows(ind.out2$Rd,ind.out2$Rd.f-ind.out2$Rd_SE.f,ind.out2$Rd,ind.out2$Rd.f+ind.out2$Rd_SE.f,length=.1,angle=90,code=3,col="gray")
+  arrows(ind.out2$Rd-ind.out2$Rd.se,ind.out2$Rd.f,ind.out2$Rd+ind.out2$Rd.se,ind.out2$Rd.f,length=.1,angle=90,code=3,col="gray")
+  points(ind.out2$Rd,ind.out2$Rd.f,col=as.numeric(as.factor(ind.out2$species)),pch=19,cex=1.5); abline(0,1,lwd=2,lty=2)
   
