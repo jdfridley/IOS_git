@@ -254,7 +254,8 @@ str(dat)
     tau <- sigma^-2 #coverts sd to precision
     sigma ~ dunif(0, 100)  #uniform prior for standard deviation
 
-    #note need to add site-level variation (non-nested)
+    #NOTE need to add site-level variation (non-nested)
+    #NOTE need to add light limitation component for forest species
 
     for(i in 1:N) {
         
@@ -348,6 +349,7 @@ str(dat)
   spp2 = "Chenopodium album"
   spp3 = "Conyza canadensis"
   df = dat[dat$species==spp1|dat$species==spp2|dat$species==spp3,]
+  #df = dat[is.element(dat$species,unique(dat$species)[1:4]),]
   df = df[df$PARi>1010,]
   df = df[df$Ci>=0,]
   N = dim(df)[1]
@@ -365,7 +367,7 @@ str(dat)
     
     #for Rd, which can't be negative, treat as fixed (unpooled) effect not random (difficult to estimate with >0 constraint)
     for(i in 1:N.indiv) {
-      Rd[i] ~ dnorm(0,1)T(0,) #note cannot take on negative values with T(0,)
+      Rd.int[i] ~ dnorm(0,1)T(0,) #note cannot take on negative values with T(0,)
     }
     
     #individual and species-level variance in photo params
@@ -384,12 +386,13 @@ str(dat)
     sigma ~ dunif(0, 100)  #uniform prior for standard deviation
 
     #NOTE: add site-level RE
+    #NOTE need to add light limitation component for forest species
 
     for(i in 1:N) { #lowest level (N=N)
         
         Anet[i] ~ dnorm(mu[i],tau) #residual error
         
-        mu[i] <- min(mu.v[i],mu.j[i]) - Rd[ind[i]] #minimum of RuBP and Rubisco limitation; TPU limitation ignored
+        mu[i] <- min(mu.v[i],mu.j[i]) - Rd.int[ind[i]] #minimum of RuBP and Rubisco limitation; TPU limitation ignored
         
         # Photo params that have individual pooling nested within species pooling
         Vcmax[i] <- Vcmax.int + b0.ind.Vcmax[ind[i]]  #here b0.ind.Vcmax is informed by b0.spp.Vcmax
@@ -428,8 +431,8 @@ str(dat)
   write(mod.photo, "model.txt")
   
   #input lists for JAGS
-  params = c("Vcm.out","Jm.out","Rd","sigma","Vcm.spp","Jm.spp","Vcmax.int","Jmax.int") #parameters to monitor
-  inits = function() list(Vcmax.int=rnorm(1),Jmax.int=rnorm(1),Rd=rnorm(N.indiv)) #starting values of fitted parameters
+  params = c("Vcm.out","Jm.out","Rd.int","sigma","Vcm.spp","Jm.spp","Vcmax.int","Jmax.int") #parameters to monitor
+  inits = function() list(Vcmax.int=rnorm(1),Jmax.int=rnorm(1),Rd.int=rlnorm(N.indiv)) #starting values of fitted parameters
   input = list(N=N,Anet=df$Photo,Ci_Pa=df$Ci_Pa,GammaStar=df$GammaStar,Kc=dat$Kc,Ko=dat$Ko,O=df$O,ind=ind,N.indiv=N.indiv,ind.spp=ind.spp,N.spp=N.spp) #input data
   
   #run JAGS model
@@ -459,15 +462,15 @@ str(dat)
   plot(f,how="oneplot")
   coef(f)
   
-  #compare results
-  attach.jags(jags.p)
-  par(mar=c(3,3,1,1),mfrow=c(3,N.indiv))
-  for(i in 1:N.indiv) {
-    hist(Vcm.out[,i],main=paste0("Vcmax",i),xlim=c(40,180)); abline(v=coef(f)[i,2],col="red") }
-  for(i in 1:N.indiv) {
-    hist(Jm.out[,i],main=paste0("Jmax",i),xlim=c(60,240)); abline(v=coef(f)[i,3],col="red") }
-  for(i in 1:N.indiv) {
-    hist(Rd[,i],main=paste0("Rd",i),xlim=c(0,2)); abline(v=coef(f)[i,4],col="red") }
+  #compare results: IGNORED, comparison below
+  #attach.jags(jags.p)
+  #par(mar=c(3,3,1,1),mfrow=c(3,N.indiv))
+  #for(i in 1:N.indiv) {
+  #  hist(Vcm.out[,i],main=paste0("Vcmax",i),xlim=c(40,180)); abline(v=coef(f)[i,2],col="red") }
+  #for(i in 1:N.indiv) {
+  #  hist(Jm.out[,i],main=paste0("Jmax",i),xlim=c(60,240)); abline(v=coef(f)[i,3],col="red") }
+  #for(i in 1:N.indiv) {
+  #  hist(Rd[,i],main=paste0("Rd",i),xlim=c(0,2)); abline(v=coef(f)[i,4],col="red") }
   
   #plot comparison of HB (pooled) results with plantecophy (unpooled)
   dfP = df
@@ -484,17 +487,22 @@ str(dat)
   points(dfP$Ci,predY,col="blue",pch=19,cex=1)
   
   #create output spreadsheets
-  attach(jags.p)
+  detach.jags()
+  attach(jags.p,overwrite=T)
   
   #species-level: note summaries of Rd are based on the median
-  spp.out = data.frame(species=levels(as.factor(df$species)),Vcmax=apply(Vcm.spp,2,mean),Jmax=apply(Jm.spp,2,mean),Rd=tapply(apply(Rd,2,median),ind.spp,mean),
-                       Vcmax.se=apply(Vcm.spp,2,sd),Jmax.se=apply(Jm.spp,2,sd),Rd.se=tapply(apply(Rd,2,median),ind.spp,sd))
+  spp.out = data.frame(species=levels(as.factor(df$species)),Vcmax=apply(Vcm.spp,2,mean),Jmax=apply(Jm.spp,2,mean),Rd=tapply(apply(Rd.int,2,median),ind.spp,mean),
+                       Vcmax.se=apply(Vcm.spp,2,sd),Jmax.se=apply(Jm.spp,2,sd),Rd.se=tapply(apply(Rd.int,2,median),ind.spp,sd))
+  woody = c(0,0,0,0,1,0,1,0,0,0,0,0,1,0,0,0,0,1,1,0,0,1,0,0,1,0) #7 woodies
+  invader = c(1,1,1,1,0,1,0,1,0,1,0,1,0,0,0,0,1,0,0,0,1,0,1,0,0,0)
+  plot(spp.out$Vcmax,spp.out$Jmax,col=woody+1,pch=19,cex=1.5) #woodies have lowest Jmax, Vcmax (except Cryptotaenia japonica) values
+  plot(spp.out$Vcmax,spp.out$Jmax,col=invader+1,pch=19,cex=1.5) #invaders are higher 
   
   #ind-level
   ind.out = summaryBy(filename~filename+date+site+species+sppcode,df)
   ind.out = ind.out[,-6]
-  ind.out = cbind(ind.out,data.frame(Vcmax=apply(Vcm.out,2,mean),Jmax=apply(Jm.out,2,mean),Rd=apply(Rd,2,median),
-                       Vcmax.se=apply(Vcm.out,2,sd),Jmax.se=apply(Jm.out,2,sd),Rd.se=apply(Rd,2,sd)))
+  ind.out = cbind(ind.out,data.frame(Vcmax=apply(Vcm.out,2,mean),Jmax=apply(Jm.out,2,mean),Rd=apply(Rd.int,2,median),
+                       Vcmax.se=apply(Vcm.out,2,sd),Jmax.se=apply(Jm.out,2,sd),Rd.se=apply(Rd.int,2,sd)))
   #if want to add plantecophys params for comparison
   fout = coef(f); names(fout) = paste0(names(fout),".f")
   ind.out2 = cbind(ind.out,fout)
