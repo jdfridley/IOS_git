@@ -6,6 +6,7 @@ library(plantecophys)
 library(nlme)
 library(lme4)
 library(R2jags)
+library(doBy)
 
 #### Dataset: on OneDrive
 
@@ -253,6 +254,8 @@ str(dat)
     tau <- sigma^-2 #coverts sd to precision
     sigma ~ dunif(0, 100)  #uniform prior for standard deviation
 
+    #note need to add site-level variation (non-nested)
+
     for(i in 1:N) {
         
         Anet[i] ~ dnorm(mu[i],tau)
@@ -379,6 +382,8 @@ str(dat)
     tau <- sigma^-2 #coverts sd to precision
     sigma ~ dunif(0, 100)  #uniform prior for standard deviation
 
+    #NOTE: add site-level RE
+
     for(i in 1:N) { #lowest level (N=N)
         
         Anet[i] ~ dnorm(mu[i],tau) #residual error
@@ -477,6 +482,18 @@ str(dat)
   plot(f,how="oneplot"); title(spp)
   points(dfP$Ci,predY,col="blue",pch=19,cex=1)
   
+  #create output spreadsheets
+  attach(jags.p)
   
+  #species-level: note summaries of Rd are based on the median
+  spp.out = data.frame(species=levels(as.factor(df$species)),Vcmax=apply(Vcm.spp,2,mean),Jmax=apply(Jm.spp,2,mean),Rd=tapply(apply(Rd,2,median),ind.spp,mean),
+                       Vcmax.se=apply(Vcm.spp,2,sd),Jmax.se=apply(Jm.spp,2,sd),Rd.se=tapply(apply(Rd,2,median),ind.spp,sd))
+  
+  #ind-level
+  ind.out = summaryBy(filename~filename+date+site+species+sppcode,df)
+  ind.out = ind.out[,-6]
+  ind.out = cbind(ind.out,data.frame(Vcmax=apply(Vcm.out,2,mean),Jmax=apply(Jm.out,2,mean),Rd=apply(Rd,2,median),
+                       Vcmax.se=apply(Vcm.out,2,sd),Jmax.se=apply(Jm.out,2,sd),Rd.se=apply(Rd,2,sd)))
+  #if want to add plantecophys params for comparison
   
   
