@@ -351,6 +351,7 @@ str(dat)
   N.indiv = max(ind)
   spp = as.numeric(as.factor(df$species))
   N.spp = max(spp)
+  ind.spp = as.numeric(apply(table(ind,spp)>0,1,function(x)names(which(x==T)))) #lists species to which an individual belongs, numerically
   
   mod.photo <- "model
 {
@@ -360,7 +361,7 @@ str(dat)
     
     #for Rd, which can't be negative, treat as fixed (unpooled) effect not random (difficult to estimate with >0 constraint)
     for(i in 1:N.indiv) {
-      Rd[i] ~ dnorm(0,1)T(0,) #ery weanote cannot take on negative values with T(0,)
+      Rd[i] ~ dnorm(0,1)T(0,) #note cannot take on negative values with T(0,)
     }
     
     #individual and species-level variance in photo params
@@ -371,25 +372,22 @@ str(dat)
     
     ind.tau.Jmax <- ind.sigma.Jmax^-2 
     ind.sigma.Jmax ~ dunif(0, 100) 
-    #spp.tau.Jmax <- spp.sigma.Jmax^-2 
-    #spp.sigma.Jmax ~ dunif(0, 100)
+    spp.tau.Jmax <- spp.sigma.Jmax^-2 
+    spp.sigma.Jmax ~ dunif(0, 100)
 
-    #level 1 variance (error)
+    #residual error
     tau <- sigma^-2 #coverts sd to precision
     sigma ~ dunif(0, 100)  #uniform prior for standard deviation
 
-    for(i in 1:N) {
+    for(i in 1:N) { #lowest level (N=N)
         
-        Anet[i] ~ dnorm(mu[i],tau)
+        Anet[i] ~ dnorm(mu[i],tau) #residual error
         
         mu[i] <- min(mu.v[i],mu.j[i]) - Rd[ind[i]] #minimum of RuBP and Rubisco limitation; TPU limitation ignored
         
+        # Photo params that have individual pooling nested within species pooling
         Vcmax[i] <- Vcmax.int + b0.ind.Vcmax[ind[i]]  #here b0.ind.Vcmax is informed by b0.spp.Vcmax
-        b0.spp.Vcmax[spp[i]] ~ dnorm(0, spp.tau.Vcmax)
-        b0.ind.Vcmax[ind[i]] ~ dnorm(b0.spp.Vcmax[spp[i]],ind.tau.Vcmax) #mean of ind RE is spp RE
-        #***something wrong with above line... what?
-
-        Jmax[i] <- Jmax.int + b0.ind.Jmax[ind[i]]
+        Jmax[i] <- Jmax.int + b0.ind.Jmax[ind[i]] #here b0.ind.Jmax is informed by b0.spp.Jmax
 
         # ---RuBisCO limited portion---
         mu.v[i] <- (Vcmax[i]*(Ci_Pa[i]-GammaStar[i]))/(Ci_Pa[i]+(Kc[i]*(1+(O[i]/Ko[i]))))
@@ -399,23 +397,34 @@ str(dat)
 
     }
 
-	  #random intercept for individual effect on Vcmax
+	  #random intercept for individual effects, nested within species
       for(i in 1:N.indiv) {
-        ##b0.ind.Vcmax[i] ~ dnorm(0,ind.tau.Vcmax) 
-        b0.ind.Jmax[i] ~ dnorm(0,ind.tau.Jmax) 
+        b0.ind.Vcmax[i] ~ dnorm(b0.spp.Vcmax[ind.spp[i]],ind.tau.Vcmax) #individual value sampled from species' distribution
+        b0.ind.Jmax[i] ~ dnorm(b0.spp.Jmax[ind.spp[i]],ind.tau.Jmax) #individual value sampled from species' distribution
         
         #output monitoring
-        Vcm.out[i] = Vcmax.int + b0.ind.Vcmax[i]
-        Jm.out[i] = Jmax.int + b0.ind.Jmax[i]
+        Vcm.out[i] <- Vcmax.int + b0.ind.Vcmax[i] #includes spp constraint
+        Jm.out[i] <- Jmax.int + b0.ind.Jmax[i]
       }  
+
+    #random intercept for species effects
+      for(i in 1:N.spp) {
+        b0.spp.Vcmax[i] ~ dnorm(0,spp.tau.Vcmax)
+        b0.spp.Jmax[i] ~ dnorm(0,spp.tau.Jmax)
+        
+        #monitor spp-level values
+        Vcm.spp[i] <- Vcmax.int + b0.spp.Vcmax[i]
+        Jm.spp[i] <- Jmax.int + b0.spp.Jmax[i]
+
+      }
 
 }" #end model
   write(mod.photo, "model.txt")
   
   #input lists for JAGS
-  params = c("Vcmout","Jm.out","Rd","sigma","b0.spp.Vcmax") #parameters to monitor
+  params = c("Vcm.out","Jm.out","Rd","sigma","Vcm.spp","Jm.spp","Vcmax.int","Jmax.int") #parameters to monitor
   inits = function() list(Vcmax.int=rnorm(1),Jmax.int=rnorm(1),Rd=rnorm(N.indiv)) #starting values of fitted parameters
-  input = list(N=N,Anet=df$Photo,Ci_Pa=df$Ci_Pa,GammaStar=df$GammaStar,Kc=dat$Kc,Ko=dat$Ko,O=df$O,ind=ind,N.indiv=N.indiv,spp=spp) #input data
+  input = list(N=N,Anet=df$Photo,Ci_Pa=df$Ci_Pa,GammaStar=df$GammaStar,Kc=dat$Kc,Ko=dat$Ko,O=df$O,ind=ind,N.indiv=N.indiv,ind.spp=ind.spp,N.spp=N.spp) #input data
   
   #run JAGS model
   jags.p <- jags(model = "model.txt",data = input,inits=inits,param=params,
@@ -425,6 +434,8 @@ str(dat)
                  n.burnin = 500) #number of initial iterations to discard
   
   jags.p
+  
+  
   
   #compare to nls
   aci.fit <- nls(Photo~ifelse(((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko)))))<((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))),((Vcmax*(Ci_Pa-GammaStar))/(Ci_Pa+(Kc*(1+(O/Ko))))),((J*(Ci_Pa-GammaStar))/((4*Ci_Pa)+(8*GammaStar))))-Rd,start=list(Vcmax=50,J=100,Rd=0.5),data=df) 
@@ -465,5 +476,7 @@ str(dat)
   par(mar=c(5,5,5,5),mfrow=c(1,1))
   plot(f,how="oneplot"); title(spp)
   points(dfP$Ci,predY,col="blue",pch=19,cex=1)
+  
+  
   
   
