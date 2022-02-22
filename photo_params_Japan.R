@@ -345,11 +345,12 @@ str(dat)
   
   ##Version 6: HB via JAGS, all species
   
-  spp1 = "Bidens frondosa"
-  spp2 = "Chenopodium album"
-  spp3 = "Conyza canadensis"
-  df = dat[dat$species==spp1|dat$species==spp2|dat$species==spp3,]
+  #spp1 = "Bidens frondosa"
+  #spp2 = "Chenopodium album"
+  #spp3 = "Conyza canadensis"
+  #df = dat[dat$species==spp1|dat$species==spp2|dat$species==spp3,]
   #df = dat[is.element(dat$species,unique(dat$species)[1:4]),]
+  df = dat
   df = df[df$PARi>1010,]
   df = df[df$Ci>=0,]
   N = dim(df)[1]
