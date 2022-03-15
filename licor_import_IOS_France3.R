@@ -16,20 +16,21 @@ unique(master$Species)
 unique(master$Sampling.Date)
 unique(master$Site.final)
 
+
 #folder of licor files ***use the current France folder on as-fridley (correct files and filenames)
-#folder.local = "/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/LICOR data files_France/" #downloaded after Robert's fixes, 2-8-22
-folder.local = "C:\\jdfhome\\NSFjapanfrance\\LICOR\\LICOR data files_France\\" #on PC
+folder.local = "/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/LICOR_data_files_France_Marchupdate/" 
+#folder.local = "C:\\jdfhome\\NSFjapanfrance\\LICOR\\LICOR data files_France\\" #on PC
 files = list.files(folder.local)
 length(files)
 
 #compare files to spreadsheet filenames
-ena.labels = master$LICOR.file.in.handENA[master$Region=="France"]
+labels = master$LICOR.file.in.handFrance[master$Region=="France"]
   #length = 150
 #xls files saved as xlsx files; add 'x' to end of spreadsheet label names
 #for(i in 1:length(ena.labels)) {
 #  if(str_sub(ena.labels[i],start=-3)  == "xls") ena.labels[i] = paste0(ena.labels[i],"x")
 #}
-setdiff(ena.labels,files)
+setdiff(labels,files)
   #all good
 
 #file output types:
