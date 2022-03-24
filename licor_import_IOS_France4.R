@@ -15,7 +15,7 @@ str(master)
 unique(master$Species)
 unique((master$Sampling.Date))
 unique(master$Site.final)
-master$Date = sapply(x,function(x)as.character(x))
+master$Date = sapply(master$Sampling.Date,function(x)as.character(x))
 
 
 #folder of licor files ***use the current France folder on as-fridley (correct files and filenames)
@@ -43,6 +43,7 @@ date = master$Date[master$LICOR.file.in.handFrance==files[i]]
 site = master$Site.final[master$LICOR.file.in.handFrance==files[i]]
 species = master$Species[master$LICOR.file.in.handFrance==files[i]]
 code = master$Species.abbreviation[master$LICOR.file.in.handFrance==files[i]]
+ID = master$ID[master$LICOR.file.in.handFrance==files[i]]
 
 #all xlsx files
   if(str_sub(files[i],start=-4) == "xlsx") {
@@ -57,6 +58,7 @@ code = master$Species.abbreviation[master$LICOR.file.in.handFrance==files[i]]
   dat$site = site
   dat$species = species
   dat$sppcode = code
+  dat$ID = ID
   par(mfrow=c(1,2))
   plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
@@ -79,6 +81,7 @@ code = master$Species.abbreviation[master$LICOR.file.in.handFrance==files[i]]
   dat$site = site
   dat$species = species
   dat$sppcode = code
+  dat$ID = ID
   dat$Obs = as.numeric(dat$Obs)
   par(mfrow=c(1,2))
   plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
@@ -98,5 +101,5 @@ hist(out$PARi)
 hist(out$Ci)
 plot(out$Ci,out$Photo,col=as.numeric(as.factor(out$filename)))
 
-#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor2.csv")
+#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor_final.csv")
 #write.csv(out,"France_licor3.csv")
