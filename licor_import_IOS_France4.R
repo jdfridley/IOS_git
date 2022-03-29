@@ -108,7 +108,7 @@ plot(out$Ci,out$Photo,col=as.numeric(as.factor(out$filename)))
 
 france = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor_final.csv")
 ena = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/ENA_licor2.csv")
-japan = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/Japan_licor_final.csv")
+japan = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/Japan_licor_final2.csv")
 
 all = bind_rows(france,ena,japan) #from dplyr
 
