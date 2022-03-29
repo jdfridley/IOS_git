@@ -103,3 +103,14 @@ plot(out$Ci,out$Photo,col=as.numeric(as.factor(out$filename)))
 
 #write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor_final.csv")
 #write.csv(out,"France_licor3.csv")
+
+##combine licor datafiles from all three regions
+
+france = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/France_licor_final.csv")
+ena = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/ENA_licor2.csv")
+japan = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/Japan_licor_final.csv")
+
+all = bind_rows(france,ena,japan) #from dplyr
+
+#write.csv(all,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/all_licor_data.csv")
+
