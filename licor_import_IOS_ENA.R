@@ -14,6 +14,8 @@ str(master)
 unique(master$Species)
 unique(master$Sampling.Date)
 unique(master$Site.final)
+master$Date = sapply(master$Sampling.Date,function(x)as.character(x))
+
 
 #folder of licor files
 folder.local = "/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/LICOR data files_ENA/" #downloaded after Robert's fixes, 2-8-22
@@ -48,15 +50,17 @@ files = files[-which(files=="2021-09-13-bifro-dewitt.xlsx" | files == "2021-09-1
 
 #output
 out = NULL
+i=1
 
 #loop over each file, examine, and add to 'out'
 for(i in i:length(files)) {
 
 #sample information to include in licor dataset
-date = master$Sampling.Date[master$LICOR.file.in.handENA==files[i]]
+date = master$Date[master$LICOR.file.in.handENA==files[i]]
 site = master$Site.final[master$LICOR.file.in.handENA==files[i]]
 species = master$Species[master$LICOR.file.in.handENA==files[i]]
 code = master$Species.abbreviation[master$LICOR.file.in.handENA==files[i]]
+ID = master$ID[master$LICOR.file.in.handENA==files[i]]
 
 if(str_sub(files[i],start=-3)  == "csv") { #csv files
 dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
@@ -68,6 +72,7 @@ dat$date = date
 dat$site = site
 dat$species = species
 dat$sppcode = code
+dat$ID = ID
 names(dat) = names(out)
 par(mfrow=c(1,2))
 plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
@@ -88,7 +93,8 @@ if(gregexpr(".",files[i],fixed=T)<0) { #tab delim text files
   dat$site = site
   dat$species = species
   dat$sppcode = code
-  names(dat) = names(out)
+  dat$ID = ID
+    names(dat) = names(out)
   par(mfrow=c(1,2))
   plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
   plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
@@ -109,6 +115,7 @@ dat$date = date
 dat$site = site
 dat$species = species
 dat$sppcode = code
+dat$ID = ID
 par(mfrow=c(1,2))
 plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
 plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
@@ -118,4 +125,4 @@ out = rbind(out,dat)
 }
 }
 
-#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/ENA_licor.csv")
+#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/ENA_licor2.csv")
