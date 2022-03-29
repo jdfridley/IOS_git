@@ -16,6 +16,7 @@ unique(master$Species)
 unique(master$Sampling.Date)
   #need to update with months and days for some
 unique(master$Site.final)
+master$Date = sapply(master$Sampling.Date,function(x)as.character(x))
 
 #folder of licor files
 folder.local = "/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/LICOR_data files_Japan/"
@@ -23,15 +24,17 @@ files = list.files(folder.local)
 
 #output
 out = NULL
+i = 1
 
 #loop over each file, examine, and add to 'out'
 for(i in 1:length(files)) {
 
 #sample information to include in licor dataset
-date = master$Sampling.Date[master$LICOR.file.in.hand==files[i]]
+date = master$Date[master$LICOR.file.in.hand==files[i]]
 site = master$Site.final[master$LICOR.file.in.hand==files[i]]
 species = master$Species[master$LICOR.file.in.hand==files[i]]
 code = master$Species.abbreviation[master$LICOR.file.in.hand==files[i]]
+ID = master$ID[master$LICOR.file.in.hand==files[i]]
 
 if(str_sub(files[i],start=-3)  == "csv") { #csv files
 dat = read.table(paste0(folder.local,files[i]),header=F,blank.lines.skip=F,sep="\t")
@@ -43,6 +46,7 @@ dat$date = date
 dat$site = site
 dat$species = species
 dat$sppcode = code
+dat$ID = ID
 par(mfrow=c(1,2))
 plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
 plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
@@ -61,6 +65,7 @@ dat$date = date
 dat$site = site
 dat$species = species
 dat$sppcode = code
+dat$ID = ID
 par(mfrow=c(1,2))
 plot(dat$PARi,dat$Photo,pch=19,cex=1.3,main="A-q")
 plot(dat$Ci,dat$Photo,pch=19,cex=1.3,main="A-Ci")
@@ -70,4 +75,4 @@ out = rbind(out,dat)
 }
 }
 
-#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/Japan_licor.csv")
+#write.csv(out,file="/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/Japan_licor_final.csv")
