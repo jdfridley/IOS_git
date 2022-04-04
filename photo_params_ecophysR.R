@@ -351,3 +351,7 @@ invhome = out[out$region=="F"&out$invader=="invader"&out$homeaway=="home"&out$re
 nathome = out[out$region=="J"&out$invader=="native"&out$regionNrange=="JJ"&out$woody==0&out$grass==0,]
 boxplot(invaway$Vcmax,invhome$Vcmax,nathome$Vcmax,main="France->Japan herbaceous",names=c("Inv-Away","Inv-Home","Native"),ylim=c(0,200))
 
+
+#next steps:
+#plow forward with HB code to get all photo params, refer to this for analysis
+
