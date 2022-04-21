@@ -18,6 +18,7 @@ library(bayesplot)
 library(ggplot2)
 library(mcmcplots)
 library(gridExtra)
+library(googlesheets4)
 
 #### Dataset: on OneDrive
 

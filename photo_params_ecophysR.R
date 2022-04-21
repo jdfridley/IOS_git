@@ -193,6 +193,7 @@ coef.out
 
 covar = read.csv("covariates.csv") #covariates at the species-region level
 out = merge(coef.out,covar,all.x=T)
+#write.csv(out,"photo_params_ecophys.csv")
 
 #Acer negundo has unclear role in this study: omit
 out = out[out$species!="Acer negundo",]
