@@ -23,7 +23,8 @@ library(googlesheets4)
 #### Dataset: on OneDrive
 
 master = read_sheet("https://docs.google.com/spreadsheets/d/1QLL5AUeP-fHar0HRfDjDP0Mw25FvowqidiCyEbBA5og/edit#gid=0")
-dat = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/all_licor_data2.csv")
+#dat = read.csv("/Users/fridley/Documents/academic/projects/IOS_FranceJapan/licor_files/all_licor_data2.csv")
+dat = read.csv("all_licor_data2.csv")
   #version 2 is the same as v1, with one licor file (Fallopia F7) added
 str(dat)
 dat$region = substr(dat$site,1,1)
@@ -62,6 +63,7 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   summary(dat$Ci)
   dat = dat[dat$Ci>(-10),]
   summary(dat$Ci)
+  dat$Press[is.na(dat$Press)] = 100 #two samples missing Press in ENA; nearly sea level
   
   #convert Ci to Pa units if needed
     dat$Ci_Pa = dat$Ci * dat$Press/ 1000
@@ -274,9 +276,9 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   #run JAGS model
   jags.p <- jags(model = "model.txt",data = input,inits=inits,param=params,
                  n.chains = 3, #number of separate MCMC chains
-                 n.iter =5000, #number of iterations per chain
+                 n.iter =10000, #number of iterations per chain
                  n.thin=3, #thinning
-                 n.burnin = 500) #number of initial iterations to discard
+                 n.burnin = 1000) #number of initial iterations to discard
   
   jags.p
   
@@ -303,7 +305,7 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   ind.out = cbind(ind.out,data.frame(Asat=apply(Asat,2,mean),Vcmax=apply(Vcm.out,2,mean),Jmax=apply(Jm.out,2,mean),Rd=apply(Rd.int,2,median),alpha=apply(alpha.out,2,mean), Asat.se=apply(Asat,2,sd), Vcmax.se=apply(Vcm.out,2,sd),Jmax.se=apply(Jm.out,2,sd),Rd.se=apply(Rd.int,2,sd),alpha.se=apply(alpha.out,2,sd)))
   
   #same as csv file
-  #write.csv(ind.out,"indoutHB.csv")
+  #write.csv(ind.out,"indoutHB2.csv")
 
   #combine with ecophys derived A-Ci dataset
   #epset = read.csv("photo_params_ecophys.csv")
@@ -320,7 +322,7 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   plot(test$Vcmax.y,test$Vcmax,col=out$woody+2); abline(0,1) #woodies are green
   plot(test$Jmax.y,test$Jmax,col=out$woody+2); abline(0,1) #woodies are green
   plot(test$Rd.y,test$Rd,col=out$woody+2); abline(0,1) #woodies are green
-  hist(test$alpha)
+  hist(test$alpha[test$alpha<1&test$alpha>0])
   hist(test$Asat)
   
   #compare HB (combined A-Ci and A-q) to ecophys
@@ -329,3 +331,14 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   plot(test$Rd.x,test$Rd,col=out$woody+2,xlim=c(-10,10)); abline(0,1) #woodies are green
     #good; as expected, HB values are less extreme
 
+
+##Quick summaries
+ind.out$region = substr(ind.out$site,1,1)  
+sort(tapply(ind.out$Asat,ind.out$species,mean))
+sort(tapply(ind.out$Vcmax,ind.out$species,mean))
+sort(tapply(ind.out$Jmax,ind.out$species,mean))
+sort(tapply(ind.out$alpha,ind.out$species,mean)) #not working, need new approach
+sort(tapply(ind.out$Rd,ind.out$species,mean))
+
+  
+  
