@@ -35,7 +35,13 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
 
   #unique IDs
   length(unique(dat$ID)) #419
-  length(unique(dat$filename)) #420
+    #some IDs only indicate separate licor files that should be combined under the same ID:
+    dat$ID[dat$ID=="ropse-F51-2"] = "ropse-F51-1"
+    dat$ID[dat$ID=="acneg-F37-2"] = "acneg-F37-1"
+    dat$ID[dat$ID=="acpse-F41-2"] = "acpse-F41-1"
+    dat$ID[dat$ID=="paspp-F28-2"] = "paspp-F28-1"
+    
+  length(unique(dat$filename)) #421
   length(unique(master$ID)) #449
   setdiff(master$ID,dat$ID) #differences explained in spreadsheet: 30 files not available for various reasons
   #number of samples per species, per region
@@ -165,12 +171,10 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   ##HB via JAGS, all species, combined A-Ci and A-q curves (similar structure to Heberling & Fridley
     #but with ind effects nested within species)
 
-  #spp1 = "Rosa multiflora"
-  #spp2 = "Lonicera morrowii"
-  #spp3 = "Artemisia vulgaris"
-  #df = dat[dat$species==spp1|dat$species==spp2|dat$species==spp3,]
-  df = dat
-  #df = df[df$PARi>1010,]
+  spp1 = "Lonicera canadensis"
+  spp2 = "Euonymus alatus"
+  df = dat[dat$species==spp1|dat$species==spp2,]
+  #df = dat
   df = df[df$Ci>=0,]
   N = dim(df)[1]
   ind = as.numeric(as.factor(df$filename)) #grouping vector (individual)
@@ -202,9 +206,9 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
     spp.tau.Jmax <- spp.sigma.Jmax^-2 
     spp.sigma.Jmax ~ dunif(0, 100)
 
-    ind.tau.alpha <- ind.sigma.Jmax^-2 
+    ind.tau.alpha <- ind.sigma.alpha^-2 
     ind.sigma.alpha ~ dunif(0, 100) 
-    spp.tau.alpha <- spp.sigma.Jmax^-2 
+    spp.tau.alpha <- spp.sigma.alpha^-2 
     spp.sigma.alpha ~ dunif(0, 100)
 
     #residual error
@@ -233,7 +237,7 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
 
         #J light dependency according to Tenhunen et al 1976
 	      J[i]<-(alpha[i]*q[i]/(sqrt(1+(alpha[i]*alpha[i]*q[i]*q[i])/(Jmax[i]*Jmax[i]))))
-
+	      
     }
 
 	  #random intercept for individual effects, nested within species
@@ -276,7 +280,7 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
                  n.chains = 3, #number of separate MCMC chains
                  n.iter =5000, #number of iterations per chain
                  n.thin=3, #thinning
-                 n.burnin = 500) #number of initial iterations to discard
+                 n.burnin = 1000) #number of initial iterations to discard
   
   jags.p
   
