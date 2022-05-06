@@ -31,6 +31,7 @@ dat$region = substr(dat$site,1,1)
   #11592 observations, 95 cols
 dat$Date = as.Date(dat$date,format="%m/%d/%y")
 dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
+dat$ID[dat$filename=="2021-09-13-bifro-dewitt.xlsx"] = "bifro-E37-1" #fix typo
 
 #### Variable inspection
 
@@ -42,6 +43,10 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
     dat$ID[dat$ID=="acpse-F41-2"] = "acpse-F41-1"
     dat$ID[dat$ID=="paspp-F28-2"] = "paspp-F28-1"
     
+    #some dates need to be altered for duplicate samples on different days:
+    dat$date[dat$ID=="acneg-F37-1"&dat$date=="6/10/20"] = "6/5/20"
+    dat$date[dat$ID=="acpse-F41-1"&dat$date=="7/29/20"] = "7/28/20"
+
   length(unique(dat$filename)) #421
   length(unique(master$ID)) #449
   setdiff(master$ID,dat$ID) #differences explained in spreadsheet: 30 files not available for various reasons
@@ -173,13 +178,14 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   ##HB via JAGS, all species, combined A-Ci and A-q curves (similar structure to Heberling & Fridley
     #but with ind effects nested within species)
 
-  spp1 = "Lonicera canadensis"
-  spp2 = "Euonymus alatus"
-  df = dat[dat$species==spp1|dat$species==spp2,]
-  #df = dat
+  #spp1 = "Lonicera canadensis"
+  #spp2 = "Euonymus alatus"
+  #df = dat[dat$species==spp1|dat$species==spp2,]
+  df = dat
   df = df[df$Ci>=0,]
   N = dim(df)[1]
-  ind = as.numeric(as.factor(df$filename)) #grouping vector (individual)
+  #ind = as.numeric(as.factor(df$filename)) #grouping vector (individual)
+  ind = as.numeric(as.factor(df$ID)) #change to ID for duplicate licor files per ind
   N.indiv = max(ind)
   spp = as.numeric(as.factor(df$species))
   N.spp = max(spp)
@@ -282,13 +288,15 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
                  n.chains = 3, #number of separate MCMC chains
                  n.iter =10000, #number of iterations per chain
                  n.thin=3, #thinning
-                 n.burnin = 1000) #number of initial iterations to discard
+                 n.burnin = 2000) #number of initial iterations to discard
   
   jags.p
   
   #examine Rhats (8th col of output)
   hist(jags.p$BUGSoutput$summary[,8])
   summary(jags.p$BUGSoutput$summary[,8])
+  #save(jags.p,file="jags.p_5.6.22.RData") #JAGS object saved
+    #some convergence problems
   
   #create output spreadsheets
   detach.jags()
@@ -304,12 +312,13 @@ dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
   plot(spp.out$Vcmax,spp.out$Jmax,col=invader+1,pch=19,cex=1.5) #invaders are higher 
   
   #ind-level
-  ind.out = summaryBy(filename~filename+ID+date+site+species+sppcode,df)
-  ind.out = ind.out[,-7]
+  #ind.out = summaryBy(filename~filename+ID+date+site+species+sppcode,df)
+  ind.out = summaryBy(ID~ID+date+site+species+sppcode,df)
+  ind.out = ind.out[,-6]
   ind.out = cbind(ind.out,data.frame(Asat=apply(Asat,2,mean),Vcmax=apply(Vcm.out,2,mean),Jmax=apply(Jm.out,2,mean),Rd=apply(Rd.int,2,median),alpha=apply(alpha.out,2,mean), Asat.se=apply(Asat,2,sd), Vcmax.se=apply(Vcm.out,2,sd),Jmax.se=apply(Jm.out,2,sd),Rd.se=apply(Rd.int,2,sd),alpha.se=apply(alpha.out,2,sd)))
   
   #same as csv file
-  #write.csv(ind.out,"indoutHB2.csv")
+  #write.csv(ind.out,"indoutHB3.csv")
 
   #combine with ecophys derived A-Ci dataset
   #epset = read.csv("photo_params_ecophys.csv")
@@ -343,6 +352,6 @@ sort(tapply(ind.out$Vcmax,ind.out$species,mean))
 sort(tapply(ind.out$Jmax,ind.out$species,mean))
 sort(tapply(ind.out$alpha,ind.out$species,mean)) #not working, need new approach
 sort(tapply(ind.out$Rd,ind.out$species,mean))
-
+plot(tapply(ind.out$Rd,ind.out$species,mean),tapply(ind.out$Asat,ind.out$species,mean),cex=1.5,pch=19)
   
   
