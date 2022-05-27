@@ -7,7 +7,7 @@ dat$region = substr(dat$site,1,1)
 dat$Date = as.Date(dat$date,format="%m/%d/%y")
 dat$sppcode[dat$sppcode=="amrt"] = "amart" #fix typo
 
-#### Which species are A-Ci only, which are both A-Ci and A-q?
+#### Which species are A-Ci only, which are both A-Ci and A-q? a
 
 #by species, take q values, estimate variance or range
 spp.list = unique(dat$species)
