@@ -1,0 +1,654 @@
+---
+title: "Fallopia Analysis"
+output: html_document
+date: "2023-02-23"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Note this Rmd is the abbreviated version of "Nallocation_Fallopia.Rd" that has all the method details (esp. on N partitioning).
+
+## Dataset
+
+The dataset (dat) is the merged output of the Bayesian photosynthesis model (from the script 'photo_params_all_HB5.R', including posterior means and SDs of Asat (A at 40 Pa and saturating light), Vcmax, Jmax, and Rd) and lab assay results in the master Google Docs spreadsheet (currently version 7), plus a separate csv file of associated covariates for each sample (nativity, range, growth form).
+
+```{r}
+dfold = "C:\\Users\\fridley\\OneDrive - Clemson University\\academic\\projects\\IOS_FranceJapan\\"
+dat = read.csv(paste0(dfold,"FAJA_data_final3.csv")) #v2 includes new cyanogenic glycoside N values
+  #v3 includes updated soil CN, pH
+dat$region = as.factor(substr((dat$Region),1,1))
+covar = read.csv(paste0(dfold,"covariates.csv")) #covariates at the species-region level
+dat = merge(dat,covar,by.x=c("Species","region"),by.y=c("species","region"),all.x=T)
+temp.dat = read.csv(paste0(dfold,"leaftempsbyID.csv")) #file of median leaf temps per sample
+names(temp.dat) = c("ID","Tleaf")
+dat = merge(dat,temp.dat,by.x="ID",by.y="ID",all.x=T) #merge leaf temps with dataset
+```
+
+### Colors for plotting
+
+```{r}
+#colors    
+  makeTransparent<-function(someColor, alpha=150)
+  {   newColor<-col2rgb(someColor)
+  apply(newColor, 2, function(curcoldata){rgb(red=curcoldata[1], green=curcoldata[2],
+                                              blue=curcoldata[3],alpha=alpha, maxColorValue=255)}) }
+c1 = makeTransparent("darkgreen") #ENA
+c2 = makeTransparent("purple")  #France
+c3 = makeTransparent("darkorange") #Japan
+colvec = c("darkgreen","purple","darkorange")
+```
+
+## Soils Data
+
+We have pH, soil N, and soil C. May be most efficient to examine pH and C:N ratios.
+
+```{r}
+library(RColorBrewer)
+bar.cols = brewer.pal(n = 8, name = 'Greens')[c(8,7,5,1)]
+bar.cols = c(bar.cols[1:3],"burlywood4","orange","darkgray")
+
+#pH
+summary(dat$soil_pH) #on average about 10 mg per g leaf, this is low
+boxplot(dat$soil_pH~dat$Region,col=c(c1,c2,c3)) 
+summary(aov(dat$soil_pH~dat$Region)) #Japan nearly 2 units pH lower, P<0.001
+
+#soil CN
+summary(dat$soil_CN) #on average about 10 mg per g leaf, this is low
+boxplot(dat$soil_CN~dat$Region,col=c(c1,c2,c3)) 
+summary(aov(dat$soil_CN~dat$Region)) #no significant difference in soil CN across regions, P=0.075
+
+```
+
+## Leaf N pools
+
+We are interested in 5 pools of leaf N:
+1. Nr = N in Rubisco. Measured assuming protein is 16% N.
+2. Nl = N allocated to light harvesting, calculated according to Takashima et al. (2004).
+3. Nb = N allocated to bioenergetics associated with electron transfer proteins, according to Takashima et al. (2004).
+4. Nc = N associated with cell wall proteins, measured directly.
+5. Nd = N associated with defensive secondary metabolites, esp. cyanogenic glycosides and alkaloids, measured by Bensaddek in France with N assumed as fraction according to most common compounds.
+
+
+```{r warning=F, fig.width=8, fig.height=4}
+
+#Rubisco N (Nr)
+dat$SLA = as.numeric(as.character(dat$Specific.leaf.area)) #SLA in cm2 g-1
+dat$Rub.g = as.numeric((dat$Rubisco.content)) * dat$SLA #ug Rubisco per g leaf
+dat$RubN = dat$Rub.g * .16 #ug N in Rubisco per g leaf
+dat$Nmass = (as.numeric(as.character(dat$leafN))/100) #g leaf N per g leaf
+dat$Rub.perc = (dat$RubN / 1000000) / dat$Nmass #Rubisco g per g leaf N
+
+#Light harvesting N (Nl)
+dat$chl.ugcm2 = as.numeric(as.character(dat$Total.Chlorophyll)) #ug chl per cm2
+dat$chl.mmolm2 = (dat$chl.ugcm2 / 1000000) * 1000 * 10000 / 893.5 #mmol chl per m2 leaf
+dat$chl.ugg = dat$chl.ugcm2 * dat$SLA  #ug chl per g leaf
+dat$chlN = dat$chl.ugg / (1/.0627) #ug N in Chl per g leaf
+dat$Chl.perc = (dat$chlN / 1000000) / dat$Nmass
+dat$chl.mmolg = dat$chl.mmolm2*dat$SLA/10000 #mmol chl per g leaf
+dat$Nl.NT = dat$chl.mmolg / (dat$Nmass*1.93) #N&T '97 approach, assuming Cb is 1.93
+dat$Nl.Taka = (dat$chl.mmolg * 37.1 / 1000) * 14 * (1/dat$Nmass) #Takashima method, similar
+
+#Bioenergetics N (Nb)
+Jmc.temp = function(c,dHa,dHd,dS,R,Tk) { #temperature dependent
+  exp(c-(dHa/(R*Tk))) / (1 + exp(  ((dS*Tk)-dHd) / (R*Tk)) )
+}
+Tk.vec = seq(20,40,length=100) + 273.15
+dat$Tleaf[is.na(dat$Tleaf)] = 30
+dat$Jmc = Jmc.temp(c=14.77, dHa=24100, dHd=564150, dS=1810, R=8.314, Tk=dat$Tleaf+273.15)
+dat$Nb.Taka = dat$Jmax*(9.53/dat$Jmc)*(dat$SLA/10000)*14*(1/dat$Nmass)/1000
+dat$Nb.NT = dat$Jmax * (dat$SLA/10000) * (1/dat$Nmass) * (1/(8.06*dat$Jmc)) #similar
+
+#Cell wall N (Nc)
+dat$wallN = dat$Cell.wall..N / 100 #g N per g cell wall
+dat$Narea.cm2 = dat$Nmass / dat$SLA #g N per cm2 leaf area
+dat$wallg.percm2 = (dat$Cell.wall.sample.mass.mg / as.numeric(as.character(dat$cell.wall.leaf.area.cm2)))/1000 #cell wall mass, g per cm2 leaf area
+dat$wallg.perg = dat$wallg.percm2*dat$SLA #cell wall mass as % leaf mass
+dat$Nc = (dat$wallg.percm2 * dat$wallN) / (dat$Narea.cm2) #percent leaf N present in cell wall
+
+#Defensive N (Nd)
+dat$defenseN = dat$total_alkaloidN_mg_g/1000 + dat$cyanN_mg_g/1000 #sum of alkaloids and cyanogenic glycosides
+```
+
+Leaf phenolics are also involved in defense but don't contain N. But the enzymes required to synthetic phenolics do of course contain N, so they may be relevant:
+
+```{r}
+summary(dat$total_polyphenols_mg_g) #on average about 10 mg per g leaf, this is low
+boxplot(dat$total_polyphenols_mg_g~dat$Region,col=c(c1,c2,c3)) #no differences across regions
+```
+
+Summary of leaf N fractions in Fallopia across regions:
+
+```{r}
+
+dat$Narea = dat$Nmass / (dat$SLA/10000)
+dat$NUE = dat$Asat / dat$Narea
+dat$Nthy = dat$Nl.Taka + dat$Nb.Taka
+fall = dat
+fall$Region[fall$Region=="ENA"] = "USA"
+fall$Region[fall$Region=="Japan"] = "aJapan" #to have home range presented first
+
+library(RColorBrewer)
+bar.cols = brewer.pal(n = 8, name = 'Greens')[c(8,7,5,1)]
+bar.cols = c(bar.cols[1:3],"burlywood4","orange","darkgray")
+
+#Stacked bar graph based directly on means of partitions
+FNr.m = tapply(fall$Rub.perc,fall$Region,function(x)mean(x,na.rm=T))
+FNl.m = tapply(fall$Nl.Taka,fall$Region,function(x)mean(x,na.rm=T))
+FNb.m = tapply(fall$Nb.Taka,fall$Region,function(x)mean(x,na.rm=T))
+FNc.m = tapply(fall$Nc,fall$Region,function(x)mean(x,na.rm=T))
+FNd.m = tapply(fall$defenseN,fall$Region,function(x)mean(x,na.rm=T))
+Ntot.m = tapply(fall$Nmass,fall$Region,function(x)mean(x,na.rm=T))
+barht.rel = rbind(FNr.m,FNl.m,FNb.m,FNc.m,FNd.m)
+barht = barht.rel
+barht[,1] = barht.rel[,1] * Ntot.m[1]
+barht[,2] = barht.rel[,2] * Ntot.m[2]
+barht[,3] = barht.rel[,3] * Ntot.m[3]
+tot3 = colSums(barht)
+FN.miss = Ntot.m - tot3 
+barht2 = rbind(barht,FN.miss)
+midpoints = apply(barht2,2,cumsum) - barht2/2  #height of middle of each component for plotting
+midpoints[5,] = midpoints[5,] + .0005 #adjust defense because so small
+percents = barht.rel*100; lastcol = 100-colSums(barht.rel)*100; percents = rbind(percents,lastcol)
+perc.lab = paste0(round(percents,1),"%")
+par(mar=c(3,5,1,6.5),mfrow=c(1,1))
+b1 = barplot(barht2*1000,beside=F,ylab="mg N per N leaf",col=bar.cols,ylim=c(0,30),names.arg=c("Japan","France","USA"),
+            cex.lab=1.5,cex.axis=1.4,cex.names=1.5)
+#title(main="Fallopia N allocation per g leaf N")
+text(rep(b1,each=6),as.numeric(midpoints)*1000,perc.lab,col="white",cex=1.4,lwd=2)
+mtext("Rubisco",side=4,las=1,at=midpoints[1,3]*1000,cex=1.2)
+mtext("Light harvest",side=4,las=1,at=midpoints[2,3]*1000,cex=1.2)
+mtext("Bioenergetics",side=4,las=1,at=midpoints[3,3]*1000,cex=1.2)
+mtext("Cell wall",side=4,las=1,at=midpoints[4,3]*1000,cex=1.2)
+mtext("Defense",side=4,las=1,at=midpoints[5,3]*1000,cex=1.2)
+mtext("Residual",side=4,las=1,at=midpoints[6,3]*1000,cex=1.2)
+text(b1,c(20.8-.4,22-.4,26-.4),round(tapply(fall$leafN,fall$Region,mean),2),cex=1.4)
+
+#same figure for pdf
+
+pdf("Figure1.pdf",width=8,height=8)
+par(mar=c(3,5,1,6.5),mfrow=c(1,1))
+b1 = barplot(barht2*1000,beside=F,ylab="mg N per N leaf",col=bar.cols,ylim=c(0,30),names.arg=c("Japan","France","USA"),
+            cex.lab=1.5,cex.axis=1.4,cex.names=1.5)
+#title(main="Fallopia N allocation per g leaf N")
+text(rep(b1,each=6),as.numeric(midpoints)*1000,perc.lab,col="white",cex=1.4,lwd=2)
+mtext("Rubisco",side=4,las=1,at=midpoints[1,3]*1000,cex=1.2)
+mtext("Light harvest",side=4,las=1,at=midpoints[2,3]*1000,cex=1.2)
+mtext("Bioenergetics",side=4,las=1,at=midpoints[3,3]*1000,cex=1.2)
+mtext("Cell wall",side=4,las=1,at=midpoints[4,3]*1000,cex=1.2)
+mtext("Defense",side=4,las=1,at=midpoints[5,3]*1000,cex=1.2)
+mtext("Residual",side=4,las=1,at=midpoints[6,3]*1000,cex=1.2)
+text(b1,c(20.8-.4,22-.4,26-.4),round(tapply(fall$leafN,fall$Region,mean),2),cex=1.4)
+dev.off()
+
+
+```
+
+The principal difference is the ENA populations have higher total N from higher Rubisco. France to a lesser extent. What allocation differences are statistically significant?
+
+```{r}
+man1 = manova(cbind(Rub.perc,Nl.Taka,Nb.Taka,Nc,defenseN)~Region,data=fall)
+summary(man1)
+  #relative allocation is significantly different
+summary.aov(man1)
+  #there are significant different in all allocation parameters if uncorrected
+  #with corrected P values, rubisco, light harvesting, bioenergetics are different
+    #cell wall and defense are not
+
+#post hoc tests
+TukeyHSD(aov(Rub.perc~Region,data=fall))
+  #ENA and France greater than Japan
+
+TukeyHSD(aov(Nl.Taka~Region,data=fall))
+  #weak suggestion that France is higher than ENA and Japan
+
+TukeyHSD(aov(Nb.Taka~Region,data=fall))
+  #Japan and France much greater than ENA
+
+TukeyHSD(aov(Nc~Region,data=fall))
+  #no differences
+
+TukeyHSD(aov(defenseN~Region,data=fall))
+  #oddly, US higher than both japan and France
+
+
+```
+
+### Differences in photosynthetic parameters across regions
+
+```{r}
+boxplot(Asat~Region,data=dat,col=colvec)
+boxplot(Vcmax~Region,data=dat,col=colvec)
+boxplot(Jmax~Region,data=dat,col=colvec)
+boxplot(Rd~Region,data=dat,col=colvec) #?? Rd much higher in France
+
+summary(aov(Asat~Region,weights=1/Asat.se,data=dat))
+summary(aov(Vcmax~Region,weights=1/Asat.se,data=dat))
+summary(aov(Jmax~Region,weights=1/Asat.se,data=dat))
+summary(aov(Rd~Region,weights=1/Asat.se,data=dat)) #P<0.001
+
+dat$PNUE = dat$Asat/dat$Narea
+boxplot(PNUE~Region,data=dat,col=colvec)
+TukeyHSD(aov(PNUE~Region,data=dat)) #ENA smaller than others, P<0.01 for both contrasts 
+
+dat$Amass = dat$Asat*dat$SLA/10000
+boxplot(Amass~Region,data=dat,col=colvec)
+summary(aov(Amass~Region,data=dat)) #ND
+
+dat$Rdmass = dat$Rd*dat$SLA/10000
+boxplot(Rdmass~Region,data=dat,col=colvec)
+TukeyHSD(aov(Rdmass~Region,data=dat)) #France substantially higher Rd (double)
+
+#figure for pub
+pdf("Figure2.pdf",width=8,height=8)
+par(mfrow=c(2,2),mar=c(5,5,1,1))
+plot(dat$Narea,dat$Asat,col=c(c1,c2,c3)[as.numeric(as.factor(dat$Region))],pch=19,cex=2,
+    xlab=expression('N'[area]*' (g m'^-2*')'),cex.lab=1.5,cex.axis=1.5,
+    ylab=expression('A'[sat]*' (' * mu * 'mol CO'[2]*' m'^-2*'s'^-1*')'))
+points(dat$Narea,dat$Asat,col=c(colvec)[as.numeric(as.factor(dat$Region))],pch=21,cex=2,lwd=2)
+summary(lm(Asat~Narea,data=dat,subset=dat$Region=="Japan")) #P=0.1
+abline(lsfit(dat$Narea[dat$Region=="Japan"],dat$Asat[dat$Region=="Japan"]),col=colvec[3],lwd=3,lty=1)
+summary(lm(Asat~Narea,data=dat,subset=dat$Region=="ENA")) #P=0.02
+abline(lsfit(dat$Narea[dat$Region=="ENA"],dat$Asat[dat$Region=="ENA"]),col=colvec[1],lwd=3,lty=1)
+summary(lm(Asat~Narea,data=dat,subset=dat$Region=="France")) #P=0.03
+abline(lsfit(dat$Narea[dat$Region=="France"],dat$Asat[dat$Region=="France"]),col=colvec[2],lwd=3,lty=1)
+
+par(mar=c(5,1,1,5))
+boxplot(Asat~Region,data=fall,col=colvec[c(3,2,1)],cex.axis=1.5,cex.lab=1.5,ylab="",xlab="",xaxt="n",yaxt="n",names.arg=c("Japan","France","USA"))
+axis(1,labels=c("Japan","France","USA"),at=c(1,2,3),cex.axis=1.5)
+axis(2,labels=F)
+
+par(mar=c(5,5,1,1))
+plot(dat$Rubisco.content,dat$Vcmax,col=c(c1,c2,c3)[as.numeric(as.factor(dat$Region))],pch=19,cex=2,
+    xlab=expression('Rubisco'*' (' * mu *  'g cm'^-2*')'),cex.lab=1.5,cex.axis=1.5,
+    ylab=expression('V'[cmax]*' (' * mu * 'mol CO'[2]*' m'^-2*'s'^-1*')'))
+points(dat$Rubisco.content,dat$Vcmax,col=c(colvec)[as.numeric(as.factor(dat$Region))],pch=21,cex=2,lwd=2)
+
+summary(lm(Vcmax~Rubisco.content,data=dat,subset=dat$Region=="France")) #P=0.76
+summary(lm(Vcmax~Rubisco.content,data=dat,subset=dat$Region=="Japan")) #P=0.56
+summary(lm(Vcmax~Rubisco.content,data=dat,subset=dat$Region=="ENA")) #P=0.90
+
+
+par(mar=c(5,1,1,5))
+boxplot(Vcmax~Region,data=fall,col=colvec[c(3,2,1)],cex.axis=1.5,cex.lab=1.5,ylab="",xlab="",yaxt="n",xaxt="n")
+axis(2,labels=F)
+axis(1,labels=c("Japan","France","USA"),at=c(1,2,3),cex.axis=1.5)
+dev.off()
+
+```
+
+### Differences in other leaf traits across Regions
+
+```{r}
+boxplot(SLA~Region,data=dat,col=colvec)
+TukeyHSD(aov(SLA~Region,data=dat)) #France higher than others, P<0.01 for both contrasts
+
+boxplot(Narea~Region,data=dat,col=colvec)
+TukeyHSD(aov(Narea~Region,data=dat)) #ENA higher than others, P<0.01 for both contrasts
+
+boxplot(Nmass~Region,data=dat,col=colvec)
+TukeyHSD(aov(Nmass~Region,data=dat)) #ENA higher than others, P<0.01 for Japan but not France (.06)
+
+boxplot(leafC~Region,data=dat,col=colvec)
+TukeyHSD(aov(leafC~Region,data=dat)) #reduction in leaf C in away range, sig (P=.01) for ENA
+
+dat$Carea = dat$leafC / (dat$SLA/100)
+boxplot(Carea~Region,data=dat,col=colvec)
+TukeyHSD(aov(Carea~Region,data=dat)) #pairwise diff except ENA-Japan
+
+
+boxplot(leaf.delta15N~Region,data=dat,col=colvec)
+TukeyHSD(aov(leaf.delta15N~Region,data=dat)) #ENA and France higher than Japan, unclear meaning
+
+boxplot(leafN.fall~Region,data=dat,col=colvec) 
+TukeyHSD(aov(leafN.fall~Region,data=dat))
+summary(aov(leafN.fall~Region,data=dat))
+  #trend toward lower N in senesced/autumn ENA populations 
+
+dat$CN = dat$leafC / dat$leafN
+boxplot(CN~Region,data=dat,col=colvec) 
+TukeyHSD(aov(CN~Region,data=dat))
+
+dat$resorbNeff = dat$leafN.fall / dat$leafN
+boxplot(resorbNeff~Region,data=dat,col=colvec) 
+summary(aov(resorbNeff~Region,data=dat)) #trend toward higher N resorption efficiency in Japan
+
+dat$chlab.ratio = dat$Chlorophyll.a / dat$Chlorophyll.b
+boxplot(chlab.ratio~Region,data=dat,col=colvec) 
+TukeyHSD(aov(chlab.ratio~Region,data=dat)) #significantly higher in Japan
+
+#Fiber
+man.fiber = manova(cbind(dat$Fiber..solubles...NSCs.,dat$Fiber..hemicellulose.,dat$Fiber..cellulose,dat$Fiber..lignin.,dat$Fiber..mineral.content.)~Region,data=dat)
+summary(man.fiber)  
+summary.aov(man.fiber)
+  #very large differences in hemicellulose and cellulose
+
+boxplot(Fiber..solubles...NSCs.~Region,data=dat,col=colvec) 
+TukeyHSD(aov(Fiber..hemicellulose.~Region,data=dat)) #striking differences across regions, ENA then France then Japan
+
+
+boxplot(Fiber..hemicellulose.~Region,data=dat,col=colvec) 
+TukeyHSD(aov(Fiber..hemicellulose.~Region,data=dat)) #striking differences across regions, ENA then France then Japan
+
+boxplot(Fiber..cellulose.~Region,data=dat,col=colvec) 
+TukeyHSD(aov(Fiber..cellulose.~Region,data=dat)) #same story with cellulose, ENA then France then Japan
+
+#check soil pH
+boxplot(Soil.pH~Region,data=dat,col=colvec) 
+TukeyHSD(aov(Soil.pH~Region,data=dat))
+  #Japan soils much more acidic, may impact N availability
+  #but ENA and France also differed in leaf N despite no pH difference
+  #soil CN data look like a lost cause
+
+
+```
+
+### Calculation of iWUE (integrated Water Use Efficiency)
+
+```{r}
+#C3 equation based on  Farquhar and Richards (1984) with -8 ppt ambient air
+  # C triangle = (d13C.air - d13C.plant) / (1+(del13C.plant/1000))
+dat$Cdiscrim = (-8 - dat$leaf.delta13C) / (1 + (dat$leaf.delta13C/1000))
+
+#iWUE from Farquahar et al. 1989, assuming ambient CO2 conc of 400 ppm
+  # iWUE = CO2ambient.ppm*(27 - Cdiscrim) / (1.6*(27-4.4))
+  #**need to check this, could relate to instantaneous WUE (A/g) from licor files
+dat$iWUE = 400 * (27-dat$Cdiscrim) / (1.6*(27-4.4))
+boxplot(iWUE~Region,data=dat,col=colvec)
+TukeyHSD(aov(iWUE~Region,data=dat)) #Japan much higher iWUE, but check whether this is related to altitude
+
+#remains true for leaves sampled in fall
+boxplot(leaf.delta13C.fall~Region,data=dat,col=colvec)
+TukeyHSD(aov(leaf.delta13C.fall~Region,data=dat))
+
+```
+
+### Calculation of leaf construction costs.
+
+```{r}
+#from Heberling & Fridley 2013 in glucose equivalents
+  #CCmass = (-1.041 + 5.077*Cmass)*(1-.67*Ash) + 5.325Nmass
+dat$ash = dat$Fiber..mineral.content. * 100
+  #negative values converted to zero
+  dat$ash[dat$ash<0] = 0
+dat$CCmass = (-1.041 + (5.077*(dat$leafC/100)))*(1-(.67*dat$ash)) + 5.325*(dat$leafN/100)
+
+boxplot(dat$CCmass~Region,data=dat,col=colvec)
+TukeyHSD(aov(CCmass~Region,data=dat))
+  #marginally different between ENA and France
+
+dat$CCarea = dat$CCmass*10000/dat$SLA
+boxplot(dat$CCarea~Region,data=dat,col=colvec)
+TukeyHSD(aov(CCarea~Region,data=dat)) #France is lower mainly due to high SLA
+
+
+```
+
+### Traits bar graph for pub
+
+```{r}
+
+pdf("Figure3.pdf",height=8,width=8)
+par(mfrow=c(3,3),mar=c(2,5,1,1))
+#Narea
+x = dat$Narea
+lab = expression(N[area]*' (g m'^-2*')')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#SLA
+x = dat$SLA
+lab = expression('SLA (g cm'^-2*')')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#chl
+x = dat$chl.ugcm2
+lab = expression('Chl (' * mu * 'g cm'^-2*')')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#chl ab
+#x = dat$Chlorophyll.a / dat$Chlorophyll.b
+#lab = expression('Chl a:b')
+
+#PNUE
+dat$PNUE = dat$Asat/dat$Narea
+x = dat$PNUE
+lab = expression('PNUE ('*mu*'mol CO'[2]*' g'^-1*' N'*' s'^-1*')')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#WUEi
+x = dat$iWUE
+lab = expression('WUE ('*mu*'mol CO'[2]*' mol'^-1*' H'[2]*'O)')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#resorption
+dat$resorbNeff = (dat$leafN-dat$leafN.fall) / dat$leafN
+x = dat$resorbNeff
+lab = "N resorption (%)"
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#CCmass
+x = dat$CCmass
+lab = expression('CC'[mass]*' (eq. g glucose g'^-1*')')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(1,1.5),ylab=lab,cex.lab=1.5,cex.axis=1.3,xpd=F)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#Cmass
+x = dat$leafC
+lab = expression('C'[mass]*' (%)')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(44,48),ylab=lab,cex.lab=1.5,cex.axis=1.3,xpd=F)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+
+#Fiber
+x = dat$Fiber..hemicellulose. + dat$Fiber..cellulose
+lab = expression('Hemi + Cellulose (%)')
+m = tapply(x,fall$Region,function(x)mean(x,na.rm=T))
+se = tapply(x,fall$Region,function(x)sd(x,na.rm=T)/sqrt(length(x[!is.na(x)])))
+mse = (m + se)*1.3
+b1 = barplot(m,names.arg=c("Japan","France","USA"),col=colvec[c(3,2,1)],xaxt="n",ylim=c(0,max(mse)),ylab=lab,cex.lab=1.5,cex.axis=1.3)
+arrows(b1,m,b1,m+se,code=2,length=.1,angle=90,lwd=2)
+dev.off()
+
+```
+
+### Relationship between leaf properties and photosynthetic parameters
+
+```{r}
+#Asat vs. Rubisco vs. Narea 
+fall$Region = as.factor(fall$Region)
+par(mfrow=c(2,2),mar=c(4,4,1,1))
+plot(fall$Narea,fall$Asat,col=c(c1,c2,c3)[as.numeric(fall$Region)],pch=19,xlab="Leaf N (g m-2)",ylab="Asat")
+legend(legend=c("ENA","France","Japan"),bty="n",cex=.8,text.col=c(c1,c2,c3),"bottomright")
+plot(fall$Rub.perc*fall$Narea,fall$Asat,col=c(c1,c2,c3)[as.numeric(fall$Region)],pch=19,xlab="Rubisco N (g m-2)",ylab="Asat")
+plot(fall$Nl.Taka*fall$Narea,fall$Asat,col=c(c1,c2,c3)[as.numeric(fall$Region)],pch=19,xlab="Light harvest N (g m-2)",ylab="Asat")
+plot(fall$Nb.Taka*fall$Narea,fall$Asat,col=c(c1,c2,c3)[as.numeric(fall$Region)],pch=19,xlab="Bioenergetics N (g m-2)",ylab="Asat")
+  #this is because Jmax drives Asat in this species at 40 Pa Ci and saturating light
+  #plot(fall$Vcmax,fall$Asat)
+summary.aov(lm(Asat~Narea*Region,data=fall))
+TukeyHSD(aov(Asat~Narea*Region,data=fall),which="Region") #only weak evidence of difference
+
+#Rubisco should better correlate with Vcmax
+par(mfrow=c(1,2),mar=c(4,4,1,1))
+plot(fall$Narea,fall$Vcmax,col=c(c1,c2,c3)[as.numeric(fall$Region)],pch=19,xlab="Leaf N (g m-2)",ylab="Vcmax")
+legend(legend=c("ENA","France","Japan"),bty="n",cex=.8,text.col=c(c1,c2,c3),"topleft")
+plot(fall$Rub.perc*fall$Narea,fall$Vcmax,col=c(c1,c2,c3)[as.numeric(fall$Region)],pch=19,xlab="Rubisco N (g m-2)",ylab="Vcmax")
+  #but it doesn't; suggests a problem with Rubisco?
+summary(lm(Vcmax~Rubisco.content,data=fall))
+  #no relationships
+
+```
+
+I think this is the largest weakness of our dataset--there is no clear relationship between photosynthetic properties and leaf N allocation.
+
+
+### Multivariate ordination and tests
+
+```{r fig.width=8, fig.height=8}
+library(pcaMethods)
+
+#choose traits for inclusion
+#tr.select = c("leafC","Cell.wall.mass","SLA","Total.Chlorophyll","Fiber..solubles...NSCs.","Fiber..hemicellulose.","Fiber..cellulose.","Fiber..lignin.","ash","total_alkaloids_mg_g","cyanN_mg_g","total_polyphenols_mg_g","Asat","Vcmax","Jmax","Rd","Rub.perc","Nmass","Narea","Nl.Taka","Nb.Taka","Nc","defenseN","PNUE","Amass","Rdmass","resorbNeff","chlab.ratio","iWUE","CCmass","CCarea")
+
+#new order based on pub table
+tr.select = c("Asat","Amass","Vcmax","SLA","Nmass","Narea","resorbNeff","leafC","Carea","CN","Total.Chlorophyll","chlab.ratio","CCmass","CCarea","iWUE","PNUE","Fiber..hemicellulose.","Fiber..cellulose.","Fiber..lignin.","ash","total_alkaloids_mg_g","cyanN_mg_g","total_polyphenols_mg_g","Rub.perc","Nl.Taka","Nb.Taka","Nc","defenseN")
+
+traitmat = dat[,tr.select]
+pcamat = scale(traitmat) #scale each  
+ppca1 = pcaMethods::pca(pcamat,method="ppca",seed=123,nPcs=2)
+ppca1 #PC 1 = 22%, PC 2 = 18%
+
+#labels
+pretty = names(pcamat)
+pretty[8] = expression('C'[mass])
+pretty[9] = expression('C'[area])
+pretty[10] = expression("CN")
+pretty[4] = expression("SLA")
+pretty[11] = expression("Chl")
+pretty[17] = expression("Hemi")
+pretty[18] = expression("Cellulose")
+pretty[19] = expression("Lignin")
+pretty[20] = expression("Ash")
+pretty[21] = expression("Alk")
+pretty[22] = expression("Cyan")
+pretty[23] = expression("Phenol")
+pretty[1] = expression("Asat"[area])
+pretty[3] = expression("V"[cmax])
+pretty[24] = expression("N"[R])
+pretty[5] = expression("N"[mass])
+pretty[6] = expression("N"[area])
+pretty[25] = expression("N"[L])
+pretty[26] = expression("N"[B])
+pretty[27] = expression("N"[C])
+pretty[28] = expression("N"[D])
+pretty[16] = expression("PNUE")
+pretty[2] = expression("Asat"[mass])
+pretty[7] = expression("N"[resorp])
+pretty[12] = expression("Chl"[a:b])
+pretty[15] = expression('WUE')
+pretty[13] = expression('CC'[mass])
+pretty[14] = expression('CC'[area])
+
+#plot PCA biplot
+pdf("Figure4.pdf",height=8,width=8)
+par(mar=c(5,5,1,1),mfrow=c(1,1))
+plot(pcaMethods::scores(ppca1)[,1],pcaMethods::scores(ppca1)[,2],xlab="PC1 (22%)",ylab="PC2 (18%)",cex.lab=1.5,cex.axis=1.4,,col=c(c1,c2,c3)[as.numeric(as.factor(dat$Region))], pch=19,cex=2,xlim=c(-7,7),ylim=c(-6,6))
+points(pcaMethods::scores(ppca1)[,1],pcaMethods::scores(ppca1)[,2],xlab="PC1 (22%)",ylab="PC2 (18%)",cex.lab=1.5,cex.axis=1.4,,col=colvec[as.numeric(as.factor(dat$Region))], pch=21,cex=2,xlim=c(-7,7),ylim=c(-6,6),lwd=2)
+f = 15
+arrows(0,0,pcaMethods::loadings(ppca1)[,1]*f,pcaMethods::loadings(ppca1)[,2]*f,col=adjustcolor("gray50", alpha.f = .5),
+       pch=21,cex=1,lwd=1.5, length=.07, angle=30)
+for (i in 1:length(pcaMethods::loadings(ppca1)[,2])){
+text(
+  pcaMethods::loadings(ppca1)[i,1]*f*1.05,pcaMethods::loadings(ppca1)[i,2]*f*1.05,
+      #pcaMethods::loadings(ppca1)[i,1]*f+if(-pcaMethods::loadings(ppca1)[i,1]>0){.2}else{-.2},
+      #pcaMethods::loadings(ppca1)[i,2]*f+if(-pcaMethods::loadings(ppca1)[i,2]>0){.2}else{-.2},
+     pretty[i],
+     col="black",
+     cex=.9,
+     xpd=T, 
+  )
+}
+#legend(legend=c("Japan","France","USA"),bty="n",cex=1.3,text.col=colvec[c(3,2,1)],"topleft")
+text(-6,6,"Japan",col=colvec[3],cex=1.3)
+text(-6,5.5,"France",col=colvec[2],cex=1.3)
+text(-6,5,"USA",col=colvec[1],cex=1.3)
+dev.off()
+
+summary(aov(pcaMethods::scores(ppca1)[,1]~dat$Region))
+TukeyHSD(aov(pcaMethods::scores(ppca1)[,1]~dat$Region))
+  #Along PC1, ENA is different than both France and Japan
+
+rev(sort(abs(pcaMethods::loadings(ppca1)[,1]))) #loadings sorted
+
+summary(aov(pcaMethods::scores(ppca1)[,2]~dat$Region))
+TukeyHSD(aov(pcaMethods::scores(ppca1)[,2]~dat$Region))
+  #Along PC2, France is different than both Japan and ENA
+
+rev(sort(abs(pcaMethods::loadings(ppca1)[,2]))) #loadings sorted
+
+#save loadings
+#write.csv(pcaMethods::loadings(ppca1),"loadings.csv")
+
+#create summary statistic table (Table 1) of trait means in each region for pub
+
+traitmat$Nmass = traitmat$Nmass*100
+traitmat$leafC = traitmat$leafC*100
+traitmat$resorbNeff = traitmat$resorbNeff*100
+traitmat[,c(17:20,24:28)] = traitmat[,c(17:20,24:28)]*100
+
+
+tabout = matrix(ncol=3,nrow=28,0) #output of means per region
+tabset = matrix(ncol=3,nrow=28,0) #output of SEs per region
+Fout = NULL #output of F stat per trait
+Pout = NULL #output of P value for each F stat
+tukout = matrix(ncol=3,nrow=28,0) #TukeyHSD P values per contrast
+for(i in 1:dim(tabout)[1]) {
+  tabout[i,] = tapply(traitmat[,i],fall$Region,function(x)mean(x,na.rm=T))
+  tabset[i,] = tapply(traitmat[,i],fall$Region,function(x)(sd(x,na.rm=T)/sqrt(length(x[!is.na(x)]))))
+  summary(aov(traitmat[,i]~fall$Region))
+  Fout[i] = summary(aov(traitmat[,i]~fall$Region))[[1]][1,4]
+  Pout[i] = summary(aov(traitmat[,i]~fall$Region))[[1]][1,5]
+  #tukey stats
+  tukout[i,] = TukeyHSD(aov(traitmat[,i]~fall$Region))[[1]][,4]
+}
+
+#tableout = data.frame(tabout,tabset,Fout,Pout,tukout)
+
+#create text table
+Jms = paste(signif(tabout[,1],3),signif(tabset[,1],2),sep=" \u00B1 ")
+Fms = paste(signif(tabout[,2],3),signif(tabset[,2],2),sep=" \u00B1 ")
+Ums = paste(signif(tabout[,3],3),signif(tabset[,3],2),sep=" \u00B1 ")
+test = data.frame(Jms,Fms,Ums); rownames(test) = pretty
+test
+
+tableout = data.frame(test,round(Fout,2))
+tableout
+#write.table(tableout,"tableout.txt")
+
+#tukey stats
+data.frame(rownames(test),round(tukout,3))
+
+```
+
+Thus two 'shift syndromes' in away range:
+1) ENA: more total N (and less resorption and PNUE), more Rubisco, more fiber but less CCmass, possibly minor defense
+2) France: higher SLA, more light harvesting and Rubisco, less defense, lower photosynthetic capacity
+
+Home Japanese populations maintain high photosynthetic rates and high WUE. 
+
+
+
+
+
+
